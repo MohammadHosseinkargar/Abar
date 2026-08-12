@@ -230,10 +230,11 @@
 
 /* Translucent chrome: content flows under the material */
 @utility glass {
-  background-color: color-mix(in srgb, var(--color-background) 68%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background-color: color-mix(in srgb, var(--color-background) 70%, transparent);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
+
 
 /* Scroll edge fade instead of a hard divider */
 @utility edge-fade {
@@ -432,7 +433,7 @@
 }
 .nbh .font-mono { font-family: "Space Mono", "Noto Sans Arabic", "Vazirmatn", ui-monospace, monospace; }
 
-/* hard-edged chrome: header, mobile tab bar, footer */
+/* hard-edged chrome: header, mobile tab bar (re-enabled for app-shell), footer */
 .nbh > header {
   background-color: var(--nbh-surface) !important;
   backdrop-filter: none !important;
@@ -440,11 +441,12 @@
   border-bottom: 2px solid var(--nbh-ink);
 }
 .nbh > nav {
-  background-color: var(--nbh-surface) !important;
+  background-color: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border-top: 2px solid var(--nbh-ink);
+  border-top: none !important;
 }
+
 .nbh > footer {
   background-color: var(--nbh-surface-alt);
   border-top: 2px solid var(--nbh-ink);

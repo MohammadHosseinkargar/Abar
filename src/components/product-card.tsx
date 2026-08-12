@@ -25,6 +25,8 @@ export function ProductCard({
           slug={product.slug}
           label={product.name}
           className="aspect-square w-full transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] [@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.04]"
+          loading={index < 4 ? "eager" : "lazy"}
+          priority={index < 2}
         />
 
         {onSale && (

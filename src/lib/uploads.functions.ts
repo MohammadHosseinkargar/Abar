@@ -63,17 +63,28 @@ export const adminUploadModel = createServerFn({ method: "POST" })
 
     const match = /^data:([^;]*);base64,(.+)$/.exec(data.dataUrl);
     if (!match) throw new Error("فایل مدل نامعتبر است.");
-    if (!/\.stl$/i.test(data.filename)) throw new Error("فقط فایل با پسوند .stl مجاز است.");
+    const contentType = match[1];
+    const isStl = /\.stl$/i.test(data.filename);
+    const isGlb = /\.glb$/i.test(data.filename);
+    const isGltf = /\.gltf$/i.test(data.filename);
+
+    if (!isStl && !isGlb && !isGltf) {
+      throw new Error("فقط فایل با پسوند .stl، .glb یا .gltf مجاز است.");
+    }
 
     const bytes = Buffer.from(match[2], "base64");
     if (bytes.byteLength > 40_000_000) throw new Error("حجم مدل نهایی باید کمتر از ۴۰ مگابایت باشد.");
 
-    const path = `models/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.stl`;
+    const ext = data.filename.split(".").pop()?.toLowerCase() || (isStl ? "stl" : isGlb ? "glb" : "gltf");
+    const path = `models/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.storage
       .from("product-images")
-      .upload(path, bytes, { contentType: "model/stl", upsert: false });
+      .upload(path, bytes, { 
+        contentType: contentType || (isStl ? "model/stl" : isGlb ? "model/gltf-binary" : "model/gltf+json"), 
+        upsert: false 
+      });
     if (error) throw new Error(error.message);
 
     return { url: `/api/public/model/${path.split("/").pop()}` };

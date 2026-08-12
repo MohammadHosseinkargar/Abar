@@ -2,7 +2,9 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { placeOrder, getMyProfile } from "@/lib/account.functions";
+import { adminGetSettings } from "@/lib/admin.functions";
 import { startPayment, getPaymentGatewayInfo } from "@/lib/payment.functions";
+
 import { normalizeError } from "@/lib/error-handler";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/app-shell";
@@ -70,7 +72,7 @@ function CheckoutPage() {
   const [form, setForm] = useState({
     name: "", phone: "", city: "", province: "", address: "", postcode: "",
     shipping: "standard" as "standard" | "express",
-    payment: "gateway" as "gateway" | "cod",
+    payment: "gateway" as "gateway",
   });
   const [placing, setPlacing] = useState(false);
   const [done, setDone] = useState<{ id: string; code: string } | null>(null);
@@ -81,6 +83,8 @@ function CheckoutPage() {
   const discountApplied = useCart((s) => s.discount);
   const account = useQuery({ queryKey: ["account"], queryFn: () => getMyProfile(), retry: false });
   const gateway = useQuery({ queryKey: ["payment-gateway"], queryFn: () => getPaymentGatewayInfo() });
+  const settings = useQuery({ queryKey: ["admin-settings"], queryFn: () => adminGetSettings() });
+
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -161,7 +165,7 @@ function CheckoutPage() {
     try {
       const res = await placeOrder({
         data: {
-          items: items.map((i) => ({ productId: i.productId, qty: i.qty })),
+          items: items.map((i) => ({ productId: i.productId, qty: i.qty, color: i.color, size: i.size })),
           shipping: form.shipping,
           payment: form.payment,
           discountCode: discountApplied?.code ?? null,
@@ -199,9 +203,10 @@ function CheckoutPage() {
     }
   }
 
-  const shipping = form.shipping === "express" ? 120000 : 65000;
+  const shipping = form.shipping === "express" ? Number(settings.data?.shippingExpress ?? 120000) : Number(settings.data?.shippingStandard ?? 65000);
   const discountValue = discountApplied ? Math.round((subtotal * discountApplied.percent) / 100) : 0;
   const total = subtotal - discountValue + shipping;
+
 
   if (items.length === 0 && !done) {
     return (
@@ -291,8 +296,7 @@ function CheckoutPage() {
                   <div className="space-y-4">
                     <p className="font-mono text-[10px] font-bold tracking-widest text-ink-3 uppercase mb-2">[ انتخاب شیوه ارسال ]</p>
                     {[
-                      { id: "standard", title: "ارسال استاندارد پستی", body: "تحویل ظرف ۳ تا ۵ روز کاری", price: 65000 },
-                      { id: "express",  title: "ارسال ویژه (تیپاکس / پیک)",     body: "تحویل سریع ظرف ۱ تا ۲ روز کاری", price: 120000 },
+                      { id: "standard", title: "هزینه ارسال", body: "تحویل ظرف ۳ تا ۵ روز کاری", price: Number(settings.data?.shippingStandard ?? 65000) },
                     ].map((opt) => (
                       <label
                         key={opt.id}
@@ -321,6 +325,7 @@ function CheckoutPage() {
                   </div>
                 )}
 
+
                 {step === 2 && (
                   <div className="space-y-4">
                     <p className="font-mono text-[10px] font-bold tracking-widest text-ink-3 uppercase mb-2">[ انتخاب درگاه پرداخت ]</p>
@@ -340,7 +345,6 @@ function CheckoutPage() {
                               body: "اتصال به درگاه بانکی (زرین‌پال)",
                             },
                           ]),
-                      { id: "cod" as const, title: "پرداخت در محل (COD)", body: "تسویه نقدی هنگام تحویل کالا" },
                     ].map((opt) => (
                       <label
                         key={opt.id}

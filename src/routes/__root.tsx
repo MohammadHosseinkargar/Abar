@@ -13,6 +13,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { registerServiceWorker } from "@/lib/register-sw";
+import { IosInstallPrompt } from "@/components/ios-install-prompt";
 
 function NotFoundComponent() {
   return (
@@ -103,6 +104,7 @@ function RootShell({ children }: { children: ReactNode }) {
       </head>
       <body>
         {children}
+        <IosInstallPrompt />
         <Scripts />
       </body>
     </html>

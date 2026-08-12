@@ -41,7 +41,10 @@ function ProductPage() {
   const reviews = data!.reviews;
   const add = useCart((s) => s.add);
   const [qty, setQty] = useState(1);
+  const [color, setColor] = useState<string>("");
+  const [size, setSize] = useState<string>("");
   const [added, setAdded] = useState(false);
+  const [error, setError] = useState("");
   const images: string[] = product.images?.length
     ? product.images
     : product.imageUrl
@@ -62,8 +65,25 @@ function ProductPage() {
 
 
   function handleAdd() {
+    if (product.availableColors && product.availableColors.length > 0 && !color) {
+      setError("لطفاً رنگ را انتخاب کنید.");
+      return;
+    }
+    if (product.availableSizes && product.availableSizes.length > 0 && !size) {
+      setError("لطفاً سایز را انتخاب کنید.");
+      return;
+    }
+    setError("");
     add(
-      { productId: product.id, slug: product.slug, name: product.name, price: product.price, image: product.imageUrl },
+      {
+        productId: product.id,
+        slug: product.slug,
+        name: product.name,
+        price: product.price,
+        image: product.imageUrl,
+        color: color || undefined,
+        size: size || undefined,
+      },
       qty,
     );
     setAdded(true);
@@ -140,6 +160,47 @@ function ProductPage() {
 
             <p className="mt-6 text-sm text-ink-2 leading-relaxed">{product.description}</p>
 
+            {/* Selection Options */}
+            <div className="mt-8 space-y-6">
+              {product.availableColors && product.availableColors.length > 0 && (
+                <div>
+                  <p className="font-mono text-[10px] tracking-widest text-ink-3 uppercase mb-3">[ SELECT COLOR / انتخاب رنگ ]</p>
+                  <div className="flex flex-wrap gap-2">
+                    {product.availableColors.map((c: string) => (
+                      <button
+                        key={c}
+                        onClick={() => { setColor(c); setError(""); }}
+                        className={`nbh-border px-4 py-2 text-xs font-bold transition-all ${
+                          color === c ? "bg-ink text-white nbh-sh-sm" : "bg-white text-ink hover:bg-ink/5"
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {product.availableSizes && product.availableSizes.length > 0 && (
+                <div>
+                  <p className="font-mono text-[10px] tracking-widest text-ink-3 uppercase mb-3">[ SELECT SIZE / انتخاب سایز ]</p>
+                  <div className="flex flex-wrap gap-2">
+                    {product.availableSizes.map((s: string) => (
+                      <button
+                        key={s}
+                        onClick={() => { setSize(s); setError(""); }}
+                        className={`nbh-border px-4 py-2 text-xs font-bold transition-all ${
+                          size === s ? "bg-ink text-white nbh-sh-sm" : "bg-white text-ink hover:bg-ink/5"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <dl className="mt-8 divide-y-2 divide-ink rounded-[6px] border-2 border-ink bg-background px-3 nbh-sh-sm">
               {product.specs.map((s: { label: string; value: string }) => (
                 <div key={s.label} className="flex items-start justify-between gap-3 py-3">
@@ -147,7 +208,6 @@ function ProductPage() {
                     {s.label}
                   </dt>
                   <dd className="min-w-0 text-end text-sm text-ink">{s.value}</dd>
-
                 </div>
               ))}
               <div className="flex items-center justify-between py-3">
@@ -163,6 +223,10 @@ function ProductPage() {
                 </dd>
               </div>
             </dl>
+
+            {error && (
+              <p className="mt-4 text-xs font-bold text-hot animate-pulse">{error}</p>
+            )}
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <QuantityStepper value={qty} onChange={setQty} />

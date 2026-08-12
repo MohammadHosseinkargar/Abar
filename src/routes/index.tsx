@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Sparkles, Package, Zap } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ProductCard } from "@/components/product-card";
 import { ProductImage } from "@/components/product-image";
 import { ModelShowcase } from "@/components/model-showcase";
 import { productsQuery, categoriesQuery } from "@/lib/queries";
+import { adminGetSettings } from "@/lib/admin.functions";
 import { toFa } from "@/lib/rtl";
 
 export const Route = createFileRoute("/")({
@@ -39,16 +40,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function HomePage() {
   const { data: products } = useSuspenseQuery(productsQuery);
   const { data: categories } = useSuspenseQuery(categoriesQuery);
+  const { data: siteSettings } = useQuery({ queryKey: ["admin-settings"], queryFn: () => adminGetSettings() });
+  
   const featured = products.filter((p) => p.featured);
-  const latest = products.slice(0, 8);
-  const models = products.flatMap((p) =>
-    (p.models?.length ? p.models : p.modelUrl ? [p.modelUrl] : []).map((url, k) => ({
-      key: `${p.id}-${k}`,
-      url,
-      name: p.name,
-      slug: p.slug,
-    })),
-  );
+  const latest = products.slice(0, 4);
+  const heroModelFromSettings = siteSettings?.heroModelUrl;
+  const heroModel = heroModelFromSettings || products.find((p) => p.featured && (p.models?.length || p.modelUrl))?.modelUrl;
+
 
   return (
     <AppShell variant="nbh">
@@ -56,7 +54,6 @@ function HomePage() {
       <section className="relative border-b-2 border-ink overflow-hidden">
         <div className="relative mx-auto max-w-6xl px-4 py-14 md:py-24 grid gap-10 md:grid-cols-[1.1fr_0.9fr] items-center">
           <div className="rise-in">
-            <SectionLabel>[ 3D PRINT / STUDIO — ۱۴۰۳ ]</SectionLabel>
             <p className="mt-6 max-w-md nbh-border nbh-sh-sm rounded-[6px] bg-surface p-4 text-sm md:text-base text-ink-2 leading-relaxed">
               محصولات چاپ‌شده با پرینترهای دقیق و متریال مقاوم.
               از دکور مینیمال تا قطعات کاربردی و سفارش‌های اختصاصی.
@@ -95,8 +92,9 @@ function HomePage() {
 
           <div className="relative">
             <div className="relative aspect-square rounded-[6px] overflow-hidden nbh-border nbh-sh-lg bg-surface">
-              {models[0] ? (
-                <ModelShowcase src={models[0].url} label={models[0].name} className="h-full w-full" />
+              {heroModel ? (
+                <ModelShowcase src={typeof heroModel === 'string' ? heroModel : (heroModel as any).models?.[0] || (heroModel as any).modelUrl!} label="Hero Model" className="h-full w-full" />
+
               ) : (
                 <ProductImage slug="hero-showcase-object" variant="hero" className="h-full w-full" />
               )}

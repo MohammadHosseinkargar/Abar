@@ -7,6 +7,8 @@ import { toFa } from "@/lib/rtl";
 import { type ReactNode } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { NotificationBell } from "./notification-bell";
+import { motion, AnimatePresence } from "framer-motion";
+
 
 function TopBar() {
   const { user } = useAuth();
@@ -20,9 +22,6 @@ function TopBar() {
 
         <nav className="ms-4 hidden md:flex items-center gap-5 text-sm text-ink-2">
           <Link to="/products" className="hover:text-ink transition-colors">محصولات</Link>
-          <Link to="/products" search={{ cat: "figures" } as never} className="hover:text-ink transition-colors">فیگورها</Link>
-          <Link to="/products" search={{ cat: "decor" } as never} className="hover:text-ink transition-colors">دکور</Link>
-          
         </nav>
 
         <div className="ms-auto flex items-center gap-1">
@@ -131,43 +130,60 @@ function MobileTabBar() {
     { to: "/cart", label: "سبد", icon: ShoppingBag, badge: totalItems },
     { to: "/profile", label: "حساب", icon: User },
   ] as const;
+
   return (
-    <nav
-      className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-line glass"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
-      <ul className="grid grid-cols-4">
-        {tabs.map((t) => {
-          const active = t.to === "/" ? path === "/" : path.startsWith(t.to);
-          const Icon = t.icon;
-          return (
-            <li key={t.to}>
+    <nav className="md:hidden fixed bottom-6 inset-x-4 z-50 pointer-events-none">
+      <div className="mx-auto max-w-sm pointer-events-auto">
+        <div className="relative flex items-center justify-between gap-1 p-2 rounded-full border border-white/20 glass shadow-2xl backdrop-blur-2xl">
+          {tabs.map((t) => {
+            const active = t.to === "/" ? path === "/" : path.startsWith(t.to);
+            const Icon = t.icon;
+            
+            return (
               <Link
+                key={t.to}
                 to={t.to}
-                className={`relative flex min-h-12 flex-col items-center justify-center gap-1 py-2.5 text-[11px] ${
-                  active ? "text-ink" : "text-ink-3"
+                className={`relative flex flex-1 flex-col items-center justify-center gap-1 py-2 rounded-full transition-colors duration-300 ${
+                  active ? "text-ink" : "text-ink-3 hover:text-ink-2"
                 }`}
               >
-                <Icon size={20} strokeWidth={active ? 2 : 1.5} />
-                <span>{t.label}</span>
-                {"badge" in t && t.badge > 0 && (
-                  <span className="absolute top-1 right-[calc(50%-18px)] grid h-4 min-w-4 place-items-center rounded-full bg-ink px-1 font-mono text-[9px] text-primary-foreground tabular">
-                    {toFa(t.badge)}
-                  </span>
+                {active && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute inset-0 bg-ink/5 rounded-full z-0"
+                    transition={{ type: "spring", bounce: 0.25, duration: 0.5 }}
+                  />
                 )}
-                <span
-                  className="absolute -top-px inset-x-6 h-px origin-center bg-ink transition-transform duration-[240ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
-                  style={{ transform: `scaleX(${active ? 1 : 0})` }}
-                />
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+                
+                <div className="relative z-10 flex flex-col items-center gap-0.5">
+                  <motion.div
+                    animate={{ scale: active ? 1.1 : 1 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  >
+                    <Icon size={22} strokeWidth={active ? 2.5 : 2} />
+                  </motion.div>
+                  <span className="text-[10px] font-medium leading-none">{t.label}</span>
+                </div>
 
+                {"badge" in t && t.badge > 0 && (
+                  <motion.span 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute top-1.5 right-[calc(50%-18px)] z-20 flex h-4 min-w-4 items-center justify-center rounded-full bg-hot px-1 font-mono text-[9px] text-white tabular shadow-sm"
+                  >
+                    {toFa(t.badge)}
+                  </motion.span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+      <div className="h-[env(safe-area-inset-bottom)]" />
+    </nav>
   );
 }
+
 
 export function AppShell({
   children,

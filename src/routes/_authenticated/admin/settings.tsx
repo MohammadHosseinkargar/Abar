@@ -7,6 +7,7 @@ import { normalizeError } from "@/lib/error-handler";
 import { toast } from "sonner";
 
 import { AdminHeader, Panel, Btn, Field, inputCls } from "@/components/admin/kit";
+import { MediaListUpload } from "@/components/admin/media-list-upload";
 
 export const Route = createFileRoute("/_authenticated/admin/settings")({
   component: AdminSettings,
@@ -23,6 +24,7 @@ const defaults = {
   zibalEnabled: false,
   zibalMerchant: "",
   zibalSandbox: true,
+  heroModelUrl: "",
 };
 
 
@@ -46,7 +48,7 @@ function AdminSettings() {
       zibalEnabled: Boolean(s.zibalEnabled ?? false),
       zibalMerchant: String(s.zibalMerchant ?? ""),
       zibalSandbox: Boolean(s.zibalSandbox ?? true),
-
+      heroModelUrl: String(s.heroModelUrl ?? ""),
     });
   }, [settings.data]);
 
@@ -93,6 +95,19 @@ function AdminSettings() {
           <Field label="ارسال رایگان از (۰ = غیرفعال)">
             <input type="number" dir="ltr" className={inputCls} value={form.freeShippingOver} onChange={(e) => setForm({ ...form, freeShippingOver: Number(e.target.value) })} />
           </Field>
+          <div className="sm:col-span-2">
+            <MediaListUpload
+              kind="model"
+              label="مدل سه‌بعدی هیرو"
+              max={1}
+              value={form.heroModelUrl ? [form.heroModelUrl] : []}
+              onChange={(urls) => setForm({ ...form, heroModelUrl: urls[0] || "" })}
+            />
+            <p className="mt-2 text-[10px] text-ink-3">می‌توانید فایل STL، GLB یا GLTF آپلود کنید یا آدرس مستقیم وارد کنید.</p>
+            <Field label="آدرس مستقیم مدل (در صورت نیاز)">
+              <input dir="ltr" className={inputCls} value={form.heroModelUrl} onChange={(e) => setForm({ ...form, heroModelUrl: e.target.value })} placeholder="/models/hero.glb" />
+            </Field>
+          </div>
         </div>
 
         <div className="mt-8 border-t-2 border-ink/5 pt-6">

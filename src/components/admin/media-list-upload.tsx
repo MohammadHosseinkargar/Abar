@@ -195,7 +195,7 @@ export function MediaListUpload({
         ref={inputRef}
         type="file"
         multiple
-        accept={isImage ? "image/jpeg,image/png,image/webp,image/avif,image/gif" : ".stl,model/stl,application/sla"}
+        accept={isImage ? "image/jpeg,image/png,image/webp,image/avif,image/gif" : ".stl,.glb,.gltf,model/stl,model/gltf-binary,model/gltf+json,application/sla"}
         className="hidden"
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);

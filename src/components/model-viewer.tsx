@@ -27,6 +27,7 @@ export function ModelViewer({
     (async () => {
       const THREE = await import("three");
       const { STLLoader } = await import("three/examples/jsm/loaders/STLLoader.js");
+      const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
       if (disposed) return;
 
       const scene = new THREE.Scene();
@@ -101,29 +102,48 @@ export function ModelViewer({
       renderer.domElement.addEventListener("pointercancel", onUp);
 
       try {
-        const buffer = await fetch(src).then((r) => {
-          if (!r.ok) throw new Error("model fetch failed");
-          return r.arrayBuffer();
-        });
-        if (disposed) return;
-        geometry = new STLLoader().parse(buffer);
-        geometry.computeVertexNormals();
-        geometry.center();
+        const isGLTF = src.toLowerCase().endsWith(".gltf") || src.toLowerCase().endsWith(".glb");
+        
+        if (isGLTF) {
+          const loader = new GLTFLoader();
+          const gltf = await new Promise<any>((resolve, reject) => {
+            loader.load(src, resolve, undefined, reject);
+          });
+          if (disposed) return;
+          
+          const model = gltf.scene;
+          pivot.add(model);
+          
+          const box = new THREE.Box3().setFromObject(model);
+          const size = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+          
+          model.position.sub(center);
+          fitRadius = size.length() * 0.5;
+        } else {
+          const buffer = await fetch(src).then((r) => {
+            if (!r.ok) throw new Error("model fetch failed");
+            return r.arrayBuffer();
+          });
+          if (disposed) return;
+          geometry = new STLLoader().parse(buffer);
+          geometry.computeVertexNormals();
+          geometry.center();
 
-        const sphere = geometry.boundingSphere ?? (geometry.computeBoundingSphere(), geometry.boundingSphere!);
-        const radius = sphere?.radius || 1;
+          const sphere = geometry.boundingSphere ?? (geometry.computeBoundingSphere(), geometry.boundingSphere!);
+          const radius = sphere?.radius || 1;
 
-        material = new THREE.MeshStandardMaterial({
-          color: 0xb8b8b8,
-          metalness: 0.15,
-          roughness: 0.55,
-          flatShading: false,
-        });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.rotation.x = -Math.PI / 2;
-        pivot.add(mesh);
-
-        fitRadius = radius;
+          material = new THREE.MeshStandardMaterial({
+            color: 0xb8b8b8,
+            metalness: 0.15,
+            roughness: 0.55,
+            flatShading: false,
+          });
+          const mesh = new THREE.Mesh(geometry, material);
+          mesh.rotation.x = -Math.PI / 2;
+          pivot.add(mesh);
+          fitRadius = radius;
+        }
         resize();
 
         setState("ready");

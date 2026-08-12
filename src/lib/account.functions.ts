@@ -161,11 +161,18 @@ export const placeOrder = createServerFn({ method: "POST" })
     z
       .object({
         items: z
-          .array(z.object({ productId: z.string().uuid(), qty: z.number().int().min(1).max(50) }))
+          .array(
+            z.object({
+              productId: z.string().uuid(),
+              qty: z.number().int().min(1).max(50),
+              color: z.string().optional().nullable(),
+              size: z.string().optional().nullable(),
+            }),
+          )
           .min(1)
           .max(50),
         shipping: z.enum(["standard", "express"]),
-        payment: z.enum(["gateway", "cod"]),
+        payment: z.enum(["gateway"]),
         discountCode: z.string().trim().max(40).optional().nullable(),
         address: addressSchema,
         note: z.string().trim().max(500).optional(),
@@ -185,7 +192,7 @@ export const placeOrder = createServerFn({ method: "POST" })
       const p = (products ?? []).find((x) => x.id === i.productId);
       if (!p || !p.is_active) throw new Error("یکی از محصولات دیگر موجود نیست.");
       if (p.stock < i.qty) throw new Error(`موجودی «${p.name}» کافی نیست.`);
-      return { product: p, qty: i.qty };
+      return { product: p, qty: i.qty, color: i.color, size: i.size };
     });
 
     const subtotal = lines.reduce((n, l) => n + Number(l.product.price) * l.qty, 0);
@@ -221,7 +228,7 @@ export const placeOrder = createServerFn({ method: "POST" })
         total,
         payment_method: data.payment,
         payment_status: "unpaid",
-        status: data.payment === "cod" ? "processing" : "pending",
+        status: "pending",
         note: data.note ?? null,
         shipping_address: data.address,
       })
@@ -237,6 +244,8 @@ export const placeOrder = createServerFn({ method: "POST" })
         name: l.product.name,
         price: Number(l.product.price),
         qty: l.qty,
+        color: l.color,
+        size: l.size,
       })),
     );
     if (iErr) throw iErr;

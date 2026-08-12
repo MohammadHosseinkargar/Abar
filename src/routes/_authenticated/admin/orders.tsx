@@ -95,9 +95,17 @@ function OrderEditor({
           <p className="mb-2 font-mono text-[10px] tracking-widest text-ink-3 uppercase">[ ITEMS ]</p>
           <ul className="space-y-1 text-sm">
             {order.items.map((i) => (
-              <li key={i.id} className="flex justify-between gap-2">
-                <span className="truncate">{i.name} × {num(i.qty)}</span>
-                <span className="font-mono text-xs">{num(i.price * i.qty)}</span>
+              <li key={i.id} className="flex flex-col border-b border-ink/5 pb-1 mb-1 last:border-0 last:pb-0 last:mb-0">
+                <div className="flex justify-between gap-2">
+                  <span className="truncate">{i.name} × {num(i.qty)}</span>
+                  <span className="font-mono text-xs">{num(i.price * i.qty)}</span>
+                </div>
+                {(i.color || i.size) && (
+                  <div className="flex gap-2 text-[10px] text-ink-3 font-bold">
+                    {i.color && <span>رنگ: {i.color}</span>}
+                    {i.size && <span>سایز: {i.size}</span>}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   public: {
     Tables: {
@@ -166,6 +166,7 @@ export type Database = {
       }
       order_items: {
         Row: {
+          color: string | null
           created_at: string
           id: string
           name: string
@@ -174,8 +175,10 @@ export type Database = {
           product_id: string | null
           product_slug: string | null
           qty: number
+          size: string | null
         }
         Insert: {
+          color?: string | null
           created_at?: string
           id?: string
           name: string
@@ -184,8 +187,10 @@ export type Database = {
           product_id?: string | null
           product_slug?: string | null
           qty: number
+          size?: string | null
         }
         Update: {
+          color?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -194,6 +199,7 @@ export type Database = {
           product_id?: string | null
           product_slug?: string | null
           qty?: number
+          size?: string | null
         }
         Relationships: [
           {
@@ -283,6 +289,8 @@ export type Database = {
       }
       products: {
         Row: {
+          available_colors: string[] | null
+          available_sizes: string[] | null
           category_slug: string
           color: string | null
           compare_at: number | null
@@ -311,6 +319,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          available_colors?: string[] | null
+          available_sizes?: string[] | null
           category_slug: string
           color?: string | null
           compare_at?: number | null
@@ -329,7 +339,7 @@ export type Database = {
           model_url?: string | null
           model_urls?: string[]
           name: string
-          price: number
+          price?: number
           rating?: number
           reviews_count?: number
           size_mm?: string | null
@@ -339,6 +349,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          available_colors?: string[] | null
+          available_sizes?: string[] | null
           category_slug?: string
           color?: string | null
           compare_at?: number | null

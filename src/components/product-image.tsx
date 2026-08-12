@@ -7,12 +7,16 @@ export function ProductImage({
   className = "",
   variant = "grid",
   src,
+  loading = "lazy",
+  priority = false,
 }: {
   slug: string;
   label?: string;
   className?: string;
   variant?: "grid" | "hero";
   src?: string | null;
+  loading?: "lazy" | "eager";
+  priority?: boolean;
 }) {
   const seed = useMemo(() => {
     let h = 0;
@@ -25,7 +29,8 @@ export function ProductImage({
       <img
         src={src}
         alt={label ?? slug}
-        loading="lazy"
+        loading={priority ? undefined : loading}
+        fetchPriority={priority ? "high" : "auto"}
         className={`object-cover ${className}`}
       />
     );

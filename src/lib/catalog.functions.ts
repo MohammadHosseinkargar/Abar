@@ -43,11 +43,13 @@ export function mapProduct(r: Row): Product {
     modelUrl: r.model_url ?? r.model_urls?.[0] ?? undefined,
     images: (r.image_urls ?? []).length ? r.image_urls : r.image_url ? [r.image_url] : [],
     models: (r.model_urls ?? []).length ? r.model_urls : r.model_url ? [r.model_url] : [],
+    availableColors: r.available_colors ?? [],
+    availableSizes: r.available_sizes ?? [],
   };
 }
 
 const PRODUCT_COLUMNS =
-  "id, slug, name, category_slug, price, compare_at, stock, rating, reviews_count, material, color, size_mm, description, specs, image_url, model_url, image_urls, model_urls, featured, is_active, created_at, updated_at";
+  "id, slug, name, category_slug, price, compare_at, stock, rating, reviews_count, material, color, size_mm, description, specs, image_url, model_url, image_urls, model_urls, available_colors, available_sizes, featured, is_active, created_at, updated_at";
 
 export const listCategories = createServerFn({ method: "GET" }).handler(async (): Promise<Category[]> => {
   const supabase = publicClient();

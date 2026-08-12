@@ -85,7 +85,7 @@ export const adminListProducts = createServerFn({ method: "GET" })
     const db = await admin();
     const { data, error } = await db
       .from("products")
-      .select("id, slug, name, category_slug, price, compare_at, stock, featured, is_active, material, color, size_mm, description, image_url, model_url, image_urls, model_urls")
+      .select("id, slug, name, category_slug, price, compare_at, stock, featured, is_active, material, color, size_mm, description, image_url, model_url, image_urls, model_urls, available_colors, available_sizes")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return (data ?? []).map((p) => ({ ...p, price: Number(p.price), compare_at: p.compare_at ? Number(p.compare_at) : null }));
@@ -107,6 +107,8 @@ const productSchema = z.object({
   modelUrl: z.string().trim().max(500).optional().nullable(),
   imageUrls: z.array(z.string().trim().max(500)).max(12).optional(),
   modelUrls: z.array(z.string().trim().max(500)).max(12).optional(),
+  availableColors: z.array(z.string().trim().max(60)).optional(),
+  availableSizes: z.array(z.string().trim().max(60)).optional(),
   featured: z.boolean(),
   isActive: z.boolean(),
   modelMetadata: z.record(z.any()).optional(),
@@ -137,6 +139,8 @@ export const adminSaveProduct = createServerFn({ method: "POST" })
       model_url: data.modelUrl ?? data.modelUrls?.[0] ?? null,
       image_urls: data.imageUrls ?? [],
       model_urls: data.modelUrls ?? [],
+      available_colors: data.availableColors ?? [],
+      available_sizes: data.availableSizes ?? [],
       model_metadata: data.modelMetadata ?? {},
       image_metadata: data.imageMetadata ?? {},
     };
@@ -219,7 +223,7 @@ export const adminListOrders = createServerFn({ method: "GET" })
     const db = await admin();
     const { data, error } = await db
       .from("orders")
-      .select("id, code, created_at, status, payment_status, total, tracking_code, shipping_address, order_items(id, name, qty, price)")
+      .select("id, code, created_at, status, payment_status, total, tracking_code, shipping_address, order_items(id, name, qty, price, color, size)")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return (data ?? []).map((o) => ({
@@ -231,7 +235,7 @@ export const adminListOrders = createServerFn({ method: "GET" })
       total: Number(o.total),
       trackingCode: o.tracking_code,
       address: o.shipping_address as Record<string, string> | null,
-      items: (o.order_items ?? []).map((i) => ({ id: i.id, name: i.name, qty: i.qty, price: Number(i.price) })),
+      items: (o.order_items ?? []).map((i) => ({ id: i.id, name: i.name, qty: i.qty, price: Number(i.price), color: i.color, size: i.size })),
     }));
   });
 
@@ -448,6 +452,7 @@ export const adminSaveSettings = createServerFn({ method: "POST" })
         zibalEnabled: z.boolean(),
         zibalMerchant: z.string().trim().max(100),
         zibalSandbox: z.boolean(),
+        heroModelUrl: z.string().trim().max(500).optional().nullable(),
       })
 
       .parse(input),

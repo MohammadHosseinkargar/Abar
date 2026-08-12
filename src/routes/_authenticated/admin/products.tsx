@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Palette, Type } from "lucide-react";
 import {
   adminListProducts,
   adminSaveProduct,
@@ -28,6 +28,8 @@ const blank = {
   material: "",
   color: "",
   sizeMm: "",
+  availableColors: [] as string[],
+  availableSizes: [] as string[],
   description: "",
   imageUrls: [] as string[],
   imageMetadata: {} as Record<string, any>,
@@ -73,6 +75,8 @@ function AdminProducts() {
       material: p.material ?? "",
       color: p.color ?? "",
       sizeMm: p.size_mm ?? "",
+      availableColors: (p as any).available_colors ?? [],
+      availableSizes: (p as any).available_sizes ?? [],
       description: p.description ?? "",
       imageUrls: p.image_urls?.length ? p.image_urls : p.image_url ? [p.image_url] : [],
       imageMetadata: (p as any).image_metadata ?? {},
@@ -149,6 +153,112 @@ function AdminProducts() {
             <Field label="ابعاد (mm)">
               <input dir="ltr" className={inputCls} value={form.sizeMm} onChange={(e) => setForm({ ...form, sizeMm: e.target.value })} />
             </Field>
+
+            <div className="sm:col-span-2 lg:col-span-3 grid gap-4 md:grid-cols-2">
+              <div className="nbh-border rounded-[6px] bg-muted p-4">
+                <div className="mb-3 flex items-center gap-2 border-b-2 border-ink pb-2">
+                  <Palette size={18} />
+                  <h3 className="text-xs font-bold uppercase tracking-wider">رنگ‌های قابل انتخاب</h3>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3 min-h-[40px]">
+                  {form.availableColors.map((color, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1.5 nbh-border rounded-[4px] bg-white px-2 py-1 text-[10px] font-bold">
+                      {color}
+                      <button 
+                        type="button" 
+                        onClick={() => setForm({ ...form, availableColors: form.availableColors.filter((_, i) => i !== idx) })}
+                        className="text-ink-3 hover:text-[var(--nb-danger)]"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                  {form.availableColors.length === 0 && <span className="text-[10px] text-ink-3 italic py-1">رنگی اضافه نشده است</span>}
+                </div>
+                <div className="flex gap-2">
+                  <input 
+                    className={`${inputCls} h-9 text-xs`} 
+                    placeholder="نام رنگ جدید..." 
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const val = e.currentTarget.value.trim();
+                        if (val && !form.availableColors.includes(val)) {
+                          setForm({ ...form, availableColors: [...form.availableColors, val] });
+                          e.currentTarget.value = '';
+                        }
+                      }
+                    }}
+                  />
+                  <Btn 
+                    className="h-9 shrink-0" 
+
+                    onClick={() => {
+                      const input = document.querySelector('input[placeholder="نام رنگ جدید..."]') as HTMLInputElement;
+                      const val = input?.value.trim();
+                      if (val && !form.availableColors.includes(val)) {
+                        setForm({ ...form, availableColors: [...form.availableColors, val] });
+                        if (input) input.value = '';
+                      }
+                    }}
+                  >
+                    افزودن
+                  </Btn>
+                </div>
+              </div>
+
+              <div className="nbh-border rounded-[6px] bg-muted p-4">
+                <div className="mb-3 flex items-center gap-2 border-b-2 border-ink pb-2">
+                  <Type size={18} />
+                  <h3 className="text-xs font-bold uppercase tracking-wider">سایزهای قابل انتخاب</h3>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3 min-h-[40px]">
+                  {form.availableSizes.map((size, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1.5 nbh-border rounded-[4px] bg-white px-2 py-1 text-[10px] font-bold">
+                      {size}
+                      <button 
+                        type="button" 
+                        onClick={() => setForm({ ...form, availableSizes: form.availableSizes.filter((_, i) => i !== idx) })}
+                        className="text-ink-3 hover:text-[var(--nb-danger)]"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                  {form.availableSizes.length === 0 && <span className="text-[10px] text-ink-3 italic py-1">سایزی اضافه نشده است</span>}
+                </div>
+                <div className="flex gap-2">
+                  <input 
+                    className={`${inputCls} h-9 text-xs`} 
+                    placeholder="سایز جدید (مثلاً: L)..." 
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const val = e.currentTarget.value.trim();
+                        if (val && !form.availableSizes.includes(val)) {
+                          setForm({ ...form, availableSizes: [...form.availableSizes, val] });
+                          e.currentTarget.value = '';
+                        }
+                      }
+                    }}
+                  />
+                  <Btn 
+                    className="h-9 shrink-0" 
+
+                    onClick={() => {
+                      const input = document.querySelector('input[placeholder="سایز جدید (مثلاً: L)..."]') as HTMLInputElement;
+                      const val = input?.value.trim();
+                      if (val && !form.availableSizes.includes(val)) {
+                        setForm({ ...form, availableSizes: [...form.availableSizes, val] });
+                        if (input) input.value = '';
+                      }
+                    }}
+                  >
+                    افزودن
+                  </Btn>
+                </div>
+              </div>
+            </div>
             <div className="sm:col-span-2 lg:col-span-3">
               <MediaListUpload 
                 kind="image" 

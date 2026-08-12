@@ -1,0 +1,1 @@
+ALTER TABLE public.order_items ADD COLUMN color text; ALTER TABLE public.order_items ADD COLUMN size text;

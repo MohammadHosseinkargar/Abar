@@ -1,13 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ProductImage } from "@/components/product-image";
 import { PriceTag } from "@/components/price-tag";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { useCart } from "@/lib/cart-store";
 import { validateDiscount } from "@/lib/catalog.functions";
+import { adminGetSettings } from "@/lib/admin.functions";
 import { toFa } from "@/lib/rtl";
 import { Trash2 } from "lucide-react";
+
 
 export const Route = createFileRoute("/cart")({
   head: () => ({
@@ -31,11 +34,15 @@ function CartPage() {
   const setApplied = useCart((s) => s.setDiscount);
   const [error, setError] = useState<string | null>(null);
 
+  const settings = useQuery({ queryKey: ["admin-settings"], queryFn: () => adminGetSettings() });
+  const standardShipping = Number(settings.data?.shippingStandard ?? 65000);
+
   const discount = applied ? Math.round((subtotal * applied.percent) / 100) : 0;
-  const shipping = subtotal > 0 ? 65000 : 0;
+  const shipping = subtotal > 0 ? standardShipping : 0;
   const total = subtotal - discount + shipping;
 
   async function applyCode() {
+
     setError(null);
     const d = await validateDiscount({ data: { code } });
     if (!d) { setError("کد تخفیف نامعتبر است."); return; }
@@ -57,36 +64,84 @@ function CartPage() {
             </Link>
           </div>
         ) : (
-          <div className="mt-8 grid gap-8 md:grid-cols-[1fr_360px]">
-            <div className="divide-y-2 divide-ink border-y-2 border-ink">
-              {items.map((it) => (
-                <div key={it.productId} className="flex gap-4 py-4">
-                  <Link to="/products/$slug" params={{ slug: it.slug }} className="h-24 w-24 shrink-0 overflow-hidden border-2 border-ink">
-                    <ProductImage src={it.image} slug={it.slug} className="h-full w-full" />
-                  </Link>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <Link to="/products/$slug" params={{ slug: it.slug }} className="text-sm font-medium hover:underline">
-                        {it.name}
+            <div className="mt-8 grid gap-8 md:grid-cols-[1fr_360px]">
+              <div className="space-y-6">
+                <div className="divide-y-2 divide-ink/10 border-y-2 border-ink">
+                  {items.map((it) => (
+                    <div key={`${it.productId}-${it.color}-${it.size}`} className="group relative flex gap-6 py-8 first:pt-4 last:pb-4">
+                      <Link
+                        to="/products/$slug"
+                        params={{ slug: it.slug }}
+                        className="h-32 w-32 md:h-40 md:w-40 shrink-0 overflow-hidden nbh-border nbh-sh-sm bg-muted"
+                      >
+                        <ProductImage src={it.image} slug={it.slug} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
                       </Link>
-                      <button onClick={() => remove(it.productId)} className="text-ink-3 hover:text-ink" aria-label="حذف">
-                        <Trash2 size={16} />
-                      </button>
+                      
+                      <div className="flex flex-1 flex-col py-1">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-1">
+                            <Link
+                              to="/products/$slug"
+                              params={{ slug: it.slug }}
+                              className="font-display text-xl md:text-2xl hover:text-ink-3 transition-colors line-clamp-2"
+                            >
+                              {it.name}
+                            </Link>
+                            
+                            {(it.color || it.size) && (
+                              <div className="flex flex-wrap gap-3 pt-2">
+                                {it.color && (
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="font-mono text-[10px] text-ink-3 uppercase">Color</span>
+                                    <span className="text-sm font-bold">{it.color}</span>
+                                  </div>
+                                )}
+                                {it.size && (
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="font-mono text-[10px] text-ink-3 uppercase">Size</span>
+                                    <span className="text-sm font-bold">{it.size}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <button
+                            onClick={() => remove(it.productId, it.color, it.size)}
+                            className="text-ink-3 hover:text-hot transition-colors p-2 -m-2"
+                            aria-label="حذف"
+                          >
+                            <Trash2 size={20} />
+                          </button>
+                        </div>
+
+                        <div className="mt-auto pt-6 flex flex-wrap items-end justify-between gap-4">
+                          <div className="space-y-4">
+                            <div className="flex items-baseline gap-3">
+                              <span className="font-mono text-[10px] text-ink-3 uppercase">Unit Price</span>
+                              <PriceTag price={it.price} size="sm" />
+                            </div>
+                            <QuantityStepper
+                              value={it.qty}
+                              onChange={(n) => setQty(it.productId, it.color, it.size, n)}
+                            />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-mono text-[10px] text-ink-3 uppercase mb-1">Subtotal</p>
+                            <PriceTag price={it.price * it.qty} size="lg" />
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-2"><PriceTag price={it.price} size="sm" /></div>
-                    <div className="mt-3 flex items-center justify-between">
-                      <QuantityStepper value={it.qty} onChange={(n) => setQty(it.productId, n)} />
-                      <PriceTag price={it.price * it.qty} size="sm" />
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-              <div className="py-4">
-                <button onClick={clear} className="text-xs text-ink-3 hover:text-ink underline underline-offset-4">
-                  خالی کردن سبد
-                </button>
+                
+                <div className="flex justify-between items-center py-2">
+                  <button onClick={clear} className="font-mono text-[10px] tracking-widest text-ink-3 hover:text-hot transition-colors uppercase border-b border-transparent hover:border-hot pb-1">
+                    [ CLEAR_ALL_ITEMS ]
+                  </button>
+                </div>
               </div>
-            </div>
 
             <aside className="nbh-card p-5 h-fit sticky top-20 bg-surface">
               <p className="font-mono text-[10px] tracking-widest text-ink-3 uppercase">[ SUMMARY ]</p>
