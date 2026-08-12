@@ -1,0 +1,25 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:?Set VITE_SUPABASE_URL in .env}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:?Set VITE_SUPABASE_PUBLISHABLE_KEY in .env}
+    container_name: abar-app
+    restart: always
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL:?Set SUPABASE_URL in .env}
+      - SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY:?Set SUPABASE_PUBLISHABLE_KEY in .env}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - APP_URL=${APP_URL:?Set APP_URL in .env}
+      - ZIBAL_MERCHANT=${ZIBAL_MERCHANT:-zibal}
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/robots.txt').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
