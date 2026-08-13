@@ -85,7 +85,7 @@ export const adminListProducts = createServerFn({ method: "GET" })
     const db = await admin();
     const { data, error } = await db
       .from("products")
-      .select("id, slug, name, category_slug, price, compare_at, stock, featured, is_active, material, color, size_mm, description, image_url, model_url, image_urls, model_urls, available_colors, available_sizes")
+      .select("id, slug, name, category_slug, price, compare_at, stock, featured, is_active, material, color, size_mm, description, image_url, model_url, image_urls, model_urls, available_colors, available_sizes, is_bookmark")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return (data ?? []).map((p) => ({ ...p, price: Number(p.price), compare_at: p.compare_at ? Number(p.compare_at) : null }));
@@ -111,6 +111,7 @@ const productSchema = z.object({
   availableSizes: z.array(z.string().trim().max(60)).optional(),
   featured: z.boolean(),
   isActive: z.boolean(),
+  isBookmark: z.boolean().optional(),
   modelMetadata: z.record(z.any()).optional(),
   imageMetadata: z.record(z.any()).optional(),
 
@@ -143,6 +144,7 @@ export const adminSaveProduct = createServerFn({ method: "POST" })
       available_sizes: data.availableSizes ?? [],
       model_metadata: data.modelMetadata ?? {},
       image_metadata: data.imageMetadata ?? {},
+      is_bookmark: data.isBookmark ?? false,
     };
     const { error } = data.id
       ? await db.from("products").update(row).eq("id", data.id)

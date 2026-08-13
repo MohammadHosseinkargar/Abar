@@ -6,8 +6,14 @@ import type { Product } from "@/data/products";
 import type { Category } from "@/data/categories";
 
 function publicClient() {
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY!;
-  return createClient<Database>(process.env.SUPABASE_URL!, key, {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  
+  if (!url || !key) {
+    throw new Error("Missing Supabase configuration in server environment.");
+  }
+  
+  return createClient<Database>(url, key, {
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
     global: {
       fetch: (input, init) => {
@@ -45,11 +51,12 @@ export function mapProduct(r: Row): Product {
     models: (r.model_urls ?? []).length ? r.model_urls : r.model_url ? [r.model_url] : [],
     availableColors: r.available_colors ?? [],
     availableSizes: r.available_sizes ?? [],
+    isBookmark: r.is_bookmark ?? false,
   };
 }
 
 const PRODUCT_COLUMNS =
-  "id, slug, name, category_slug, price, compare_at, stock, rating, reviews_count, material, color, size_mm, description, specs, image_url, model_url, image_urls, model_urls, available_colors, available_sizes, featured, is_active, created_at, updated_at";
+  "id, slug, name, category_slug, price, compare_at, stock, rating, reviews_count, material, color, size_mm, description, specs, image_url, model_url, image_urls, model_urls, available_colors, available_sizes, featured, is_active, created_at, updated_at, is_bookmark";
 
 export const listCategories = createServerFn({ method: "GET" }).handler(async (): Promise<Category[]> => {
   const supabase = publicClient();

@@ -10,6 +10,7 @@ export type CartItem = {
   image?: string;
   color?: string;
   size?: string;
+  isBookmark?: boolean;
 };
 
 export type AppliedDiscount = { code: string; percent: number; label: string };

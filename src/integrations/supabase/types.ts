@@ -302,6 +302,7 @@ export type Database = {
           image_url: string | null
           image_urls: string[]
           is_active: boolean
+          is_bookmark: boolean | null
           material: string | null
           model_glb_url: string | null
           model_metadata: Json | null
@@ -332,6 +333,7 @@ export type Database = {
           image_url?: string | null
           image_urls?: string[]
           is_active?: boolean
+          is_bookmark?: boolean | null
           material?: string | null
           model_glb_url?: string | null
           model_metadata?: Json | null
@@ -362,6 +364,7 @@ export type Database = {
           image_url?: string | null
           image_urls?: string[]
           is_active?: boolean
+          is_bookmark?: boolean | null
           material?: string | null
           model_glb_url?: string | null
           model_metadata?: Json | null

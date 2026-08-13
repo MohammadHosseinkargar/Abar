@@ -37,6 +37,7 @@ const blank = {
   modelMetadata: {} as Record<string, any>,
   featured: false,
   isActive: true,
+  isBookmark: false,
 };
 
 function AdminProducts() {
@@ -84,6 +85,7 @@ function AdminProducts() {
       modelMetadata: (p as any).model_metadata ?? {},
       featured: p.featured,
       isActive: p.is_active,
+      isBookmark: (p as any).is_bookmark ?? false,
     });
 
   const term = q.trim().toLowerCase();
@@ -289,6 +291,10 @@ function AdminProducts() {
               محصول ویژه
             </label>
             <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={form.isBookmark} onChange={(e) => setForm({ ...form, isBookmark: e.target.checked })} />
+              محصول بوکمارک است
+            </label>
+            <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
               فعال در فروشگاه
             </label>
@@ -349,6 +355,7 @@ function AdminProducts() {
                 <div className="flex flex-wrap items-center gap-2 sm:contents">
                   <span className="font-mono text-xs">{num(p.price)}</span>
                   <Tag tone={p.stock > 3 ? "muted" : "warn"}>موجودی {num(p.stock)}</Tag>
+                  {(p as any).is_bookmark && <Tag tone="ok">بوکمارک</Tag>}
                   {p.featured && <Tag tone="ok">ویژه</Tag>}
                   {!p.is_active && <Tag tone="warn">غیرفعال</Tag>}
                   <div className="ms-auto flex gap-2.5 sm:ms-0">

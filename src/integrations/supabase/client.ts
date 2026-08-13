@@ -28,24 +28,35 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 
 
 function createSupabaseClient() {
-  // Use import.meta.env for client-side (Vite build-time replacement)
-  // Fall back to process.env for SSR (server-side rendering)
-  const SUPABASE_URL = import.meta.env['VITE_SUPABASE_URL'] || process.env['SUPABASE_URL'];
-  const SUPABASE_PUBLISHABLE_KEY = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'] || process.env['SUPABASE_PUBLISHABLE_KEY'];
+  const env = typeof window !== 'undefined' ? (import.meta as any).env : process.env;
+  
+  const SUPABASE_URL = env.VITE_SUPABASE_URL || env.SUPABASE_URL;
+  const SUPABASE_PUBLISHABLE_KEY = 
+    env.VITE_SUPABASE_PUBLISHABLE_KEY || 
+    env.VITE_SUPABASE_ANON_KEY || 
+    env.SUPABASE_PUBLISHABLE_KEY ||
+    env.SUPABASE_ANON_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
-      ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
-      ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
+      ...(!SUPABASE_URL ? ['SUPABASE_URL / VITE_SUPABASE_URL'] : []),
+      ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY / VITE_SUPABASE_PUBLISHABLE_KEY'] : []),
     ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.`;
+    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Ensure they are set in your environment or .env file.`;
     console.error(`[Supabase] ${message}`);
-    throw new Error(message);
+    
+    // In production SSR, we want to avoid crashing the whole server process if possible,
+    // but the client is unusable without these.
+    if (typeof window === 'undefined') {
+      console.warn('[Supabase] Running in server context without environment variables.');
+    } else {
+      throw new Error(message);
+    }
   }
 
-  return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  return createClient<Database>(SUPABASE_URL || '', SUPABASE_PUBLISHABLE_KEY || '', {
     global: {
-      fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
+      fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY || ''),
     },
     auth: {
       storage: typeof window !== 'undefined' ? localStorage : undefined,

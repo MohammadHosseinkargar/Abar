@@ -54,6 +54,9 @@ function HomePage() {
       <section className="relative border-b-2 border-ink overflow-hidden">
         <div className="relative mx-auto max-w-6xl px-4 py-14 md:py-24 grid gap-10 md:grid-cols-[1.1fr_0.9fr] items-center">
           <div className="rise-in">
+            <SectionLabel>
+              [ ABAR 3D / PRINTING SERVICE ]
+            </SectionLabel>
             <p className="mt-6 max-w-md nbh-border nbh-sh-sm rounded-[6px] bg-surface p-4 text-sm md:text-base text-ink-2 leading-relaxed">
               محصولات چاپ‌شده با پرینترهای دقیق و متریال مقاوم.
               از دکور مینیمال تا قطعات کاربردی و سفارش‌های اختصاصی.

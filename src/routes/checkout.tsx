@@ -203,7 +203,9 @@ function CheckoutPage() {
     }
   }
 
-  const shipping = form.shipping === "express" ? Number(settings.data?.shippingExpress ?? 120000) : Number(settings.data?.shippingStandard ?? 65000);
+  const hasNonBookmark = items.some(it => !it.isBookmark);
+  const shipping = items.length > 0 ? (hasNonBookmark ? 180000 : 160000) : 0;
+  
   const discountValue = discountApplied ? Math.round((subtotal * discountApplied.percent) / 100) : 0;
   const total = subtotal - discountValue + shipping;
 
@@ -296,7 +298,7 @@ function CheckoutPage() {
                   <div className="space-y-4">
                     <p className="font-mono text-[10px] font-bold tracking-widest text-ink-3 uppercase mb-2">[ انتخاب شیوه ارسال ]</p>
                     {[
-                      { id: "standard", title: "هزینه ارسال", body: "تحویل ظرف ۳ تا ۵ روز کاری", price: Number(settings.data?.shippingStandard ?? 65000) },
+                      { id: "standard", title: "هزینه ارسال", body: "تحویل ظرف ۳ تا ۵ روز کاری", price: shipping },
                     ].map((opt) => (
                       <label
                         key={opt.id}

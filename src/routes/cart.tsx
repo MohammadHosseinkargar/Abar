@@ -35,10 +35,11 @@ function CartPage() {
   const [error, setError] = useState<string | null>(null);
 
   const settings = useQuery({ queryKey: ["admin-settings"], queryFn: () => adminGetSettings() });
-  const standardShipping = Number(settings.data?.shippingStandard ?? 65000);
-
+  
+  const hasNonBookmark = items.some(it => !it.isBookmark);
+  const shipping = items.length > 0 ? (hasNonBookmark ? 180000 : 160000) : 0;
+  
   const discount = applied ? Math.round((subtotal * applied.percent) / 100) : 0;
-  const shipping = subtotal > 0 ? standardShipping : 0;
   const total = subtotal - discount + shipping;
 
   async function applyCode() {
