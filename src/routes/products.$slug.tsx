@@ -83,6 +83,7 @@ function ProductPage() {
         image: product.imageUrl,
         color: color || undefined,
         size: size || undefined,
+        isBookmark: product.isBookmark,
       },
       qty,
     );

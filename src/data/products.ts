@@ -20,4 +20,5 @@ export interface Product {
   models?: string[];
   availableColors?: string[];
   availableSizes?: string[];
+  isBookmark?: boolean;
 }
