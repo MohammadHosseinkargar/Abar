@@ -5,6 +5,8 @@ import { mapTorobProduct, TOROB_PAGE_SIZE, isTorobVisible } from "./products.ser
 import { verifyTorobRequest } from "./auth.server";
 import { readCookie, validTorobClickId } from "./attribution";
 import { torobRetryDelaySeconds } from "./webhook.server";
+import { handleTorobWebhookProcess, processTorobWebhookQueue } from "./webhook.server";
+import { getTorobConfigurationState } from "./config.server";
 
 const baseRow = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -31,6 +33,7 @@ const baseRow = {
 beforeEach(() => {
   process.env.APP_URL = "https://abar3d.ir";
   process.env.TOROB_TOKEN_VERSION = "1";
+  delete process.env.TOROB_WEBHOOK_TOKEN;
 });
 
 describe("Product API v3 validation", () => {
@@ -146,6 +149,38 @@ describe("authentication and attribution", () => {
 });
 
 describe("webhook retry", () => {
+  it("keeps Product API ready without a webhook token", () => {
+    process.env.TOROB_PUBLIC_KEY = "configured-public-key";
+    expect(getTorobConfigurationState()).toMatchObject({
+      ready: true,
+      productApiReady: true,
+      webhookEnabled: false,
+    });
+  });
+  it("requires the Product API token version", () => {
+    process.env.TOROB_PUBLIC_KEY = "configured-public-key";
+    delete process.env.TOROB_TOKEN_VERSION;
+    expect(getTorobConfigurationState().productApiReady).toBe(false);
+  });
+  it("does not claim or send queued events without a webhook token", async () => {
+    await expect(processTorobWebhookQueue()).resolves.toEqual({
+      status: "disabled",
+      processed: 0,
+      sent: 0,
+    });
+  });
+  it("returns a graceful endpoint response without a webhook token", async () => {
+    const response = await handleTorobWebhookProcess(
+      new Request("https://abar3d.ir/api/torob/webhooks/process", { method: "POST" }),
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      status: "disabled",
+      reason: "webhook_token_not_configured",
+      processed: 0,
+      sent: 0,
+    });
+  });
   it("backs off after a failure", () => expect(torobRetryDelaySeconds(1)).toBe(60));
   it("caps retry delay", () => expect(torobRetryDelaySeconds(99)).toBe(3600));
   it("keeps a 100 item batch contract", () => expect(TOROB_PAGE_SIZE).toBe(100));

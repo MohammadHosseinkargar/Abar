@@ -7,7 +7,7 @@ export function getTorobConfig() {
   return {
     appUrl: appUrl.origin,
     publicKey: (process.env.TOROB_PUBLIC_KEY?.trim() || "").replace(/\\n/g, "\n"),
-    tokenVersion: process.env.TOROB_TOKEN_VERSION?.trim() || "1",
+    tokenVersion: process.env.TOROB_TOKEN_VERSION?.trim() || "",
     webhookToken: process.env.TOROB_WEBHOOK_TOKEN?.trim() || "",
     webhookUrl: process.env.TOROB_WEBHOOK_URL?.trim() || DEFAULT_WEBHOOK_URL,
     queueSecret: process.env.TOROB_QUEUE_SECRET?.trim() || "",
@@ -17,12 +17,17 @@ export function getTorobConfig() {
 
 export function getTorobConfigurationState() {
   const publicKey = Boolean(process.env.TOROB_PUBLIC_KEY?.trim());
+  const tokenVersion = Boolean(process.env.TOROB_TOKEN_VERSION?.trim());
   const webhookToken = Boolean(process.env.TOROB_WEBHOOK_TOKEN?.trim());
   const queueSecret = Boolean(process.env.TOROB_QUEUE_SECRET?.trim());
+  const productApiReady = publicKey && tokenVersion;
   return {
-    ready: publicKey,
+    ready: productApiReady,
+    productApiReady,
     publicKey,
+    tokenVersion,
     webhookToken,
+    webhookEnabled: webhookToken,
     queueSecret,
     orderTrackingEnabled: process.env.TOROB_ORDER_TRACKING_ENABLED === "true",
   };

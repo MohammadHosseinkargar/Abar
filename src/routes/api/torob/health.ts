@@ -18,6 +18,8 @@ export const Route = createFileRoute("/api/torob/health")({
               status: config.ready ? "ok" : "configuration_required",
               products_available: count ?? 0,
               configuration: config.ready ? "ready" : "incomplete",
+              product_api: config.productApiReady ? "ready" : "incomplete",
+              webhook: config.webhookEnabled ? "ready" : "disabled",
             },
             { headers: { "Cache-Control": "no-store" } },
           );

@@ -139,6 +139,22 @@ try {
   const selected = [available, unavailable, third];
 
   await waitForServer();
+  const healthResponse = await fetch(`http://${host}/api/torob/health`);
+  assert.equal(healthResponse.status, 200);
+  const health = await healthResponse.json();
+  assert.equal(health.status, "ok");
+  assert.equal(health.products_available, rows.length);
+
+  const sitemapResponse = await fetch(`http://${host}/product-sitemap.xml`);
+  assert.equal(sitemapResponse.status, 200);
+  assert.match(sitemapResponse.headers.get("content-type") || "", /application\/xml/);
+  const sitemap = await sitemapResponse.text();
+  for (const row of rows) assert.ok(sitemap.includes(`${appUrl}/products/${row.slug}`));
+
+  const robotsResponse = await fetch(`http://${host}/robots.txt`);
+  assert.equal(robotsResponse.status, 200);
+  assert.match(await robotsResponse.text(), /Sitemap: https:\/\/abar3d\.ir\/product-sitemap\.xml/);
+
   const page = await post({ page: 1, sort: "date_added_desc" });
   assert.equal(page.api_version, "torob_api_v3");
   assert.equal(page.total, rows.length);
@@ -171,7 +187,24 @@ try {
     }
   }
 
-  console.log(JSON.stringify({ source_total: rows.length, audited_products: audited }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        source_total: rows.length,
+        smoke: {
+          health: healthResponse.status,
+          products_pagination: 200,
+          products_page_urls: 200,
+          products_page_uniques: 200,
+          sitemap: sitemapResponse.status,
+          robots: robotsResponse.status,
+        },
+        audited_products: audited,
+      },
+      null,
+      2,
+    ),
+  );
 } finally {
   server.kill();
 }

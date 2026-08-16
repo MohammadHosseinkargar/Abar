@@ -8,15 +8,39 @@ type QueueRow = { id: number; page_unique: string; page_url: string; attempts: n
 export const torobRetryDelaySeconds = (attempts: number) =>
   Math.min(3600, 30 * 2 ** Math.min(attempts, 7));
 
+export async function handleTorobWebhookProcess(request: Request): Promise<Response> {
+  const config = getTorobConfig();
+  if (!config.webhookToken) {
+    return Response.json({
+      status: "disabled",
+      reason: "webhook_token_not_configured",
+      processed: 0,
+      sent: 0,
+    });
+  }
+  if (
+    !config.queueSecret ||
+    request.headers.get("authorization") !== `Bearer ${config.queueSecret}`
+  )
+    return Response.json({ error: "unauthorized" }, { status: 401 });
+  try {
+    return Response.json(await processTorobWebhookQueue());
+  } catch {
+    return Response.json({ error: "webhook processing failed" }, { status: 502 });
+  }
+}
+
 export async function processTorobWebhookQueue() {
   const config = getTorobConfig();
-  if (!config.webhookToken) throw new Error("TOROB_WEBHOOK_TOKEN is not configured");
+  // Queue writes are database-triggered and remain active without this token.
+  // Do not claim rows until delivery is configured, so pending events stay intact.
+  if (!config.webhookToken) return { status: "disabled" as const, processed: 0, sent: 0 };
   const { data, error } = await (supabaseAdmin as any).rpc("claim_torob_webhook_batch", {
     batch_size: 100,
   });
   if (error) throw error;
   const rows = (data ?? []) as QueueRow[];
-  if (!rows.length) return { processed: 0, sent: 0 };
+  if (!rows.length) return { status: "ok" as const, processed: 0, sent: 0 };
 
   const items = rows.map((row) => ({
     page_url: new URL(row.page_url, config.appUrl).href,
@@ -48,7 +72,7 @@ export async function processTorobWebhookQueue() {
       message: "Webhook accepted by Torob",
     });
     console.info("[Torob Webhook] sent", { products: rows.length });
-    return { processed: rows.length, sent: rows.length };
+    return { status: "ok" as const, processed: rows.length, sent: rows.length };
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : "unknown webhook error";
     await Promise.all(
