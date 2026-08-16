@@ -76,6 +76,31 @@ export const adminOverview = createServerFn({ method: "GET" })
     };
   });
 
+export const adminTorobOverview = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const db = await admin();
+    const [products, pending, sent, recent] = await Promise.all([
+      db.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
+      (db as any).from("torob_webhook_queue").select("id", { count: "exact", head: true }).in("status", ["pending", "processing", "failed"]),
+      (db as any).from("torob_webhook_queue").select("id", { count: "exact", head: true }).eq("status", "sent"),
+      (db as any).from("torob_sync_events").select("success,item_count,message,created_at").order("created_at", { ascending: false }).limit(10),
+    ]);
+    return {
+      productsAvailable: products.count ?? 0,
+      queuePending: pending.count ?? 0,
+      webhookSent: sent.count ?? 0,
+      configuration: {
+        publicKey: Boolean(process.env.TOROB_PUBLIC_KEY?.trim()),
+        webhookToken: Boolean(process.env.TOROB_WEBHOOK_TOKEN?.trim()),
+        queueSecret: Boolean(process.env.TOROB_QUEUE_SECRET?.trim()),
+        orderTracking: process.env.TOROB_ORDER_TRACKING_ENABLED === "true",
+      },
+      recent: recent.data ?? [],
+    };
+  });
+
 /* ---------------- products ---------------- */
 
 export const adminListProducts = createServerFn({ method: "GET" })

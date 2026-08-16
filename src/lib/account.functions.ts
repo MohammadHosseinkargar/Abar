@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getRequest } from "@tanstack/react-start/server";
+import { readCookie, TOROB_CLICK_COOKIE, validTorobClickId } from "@/lib/torob/attribution";
 
 export type OrderSummary = {
   id: string;
@@ -216,8 +218,9 @@ export const placeOrder = createServerFn({ method: "POST" })
     const total = Math.max(0, subtotal - discount) + shipping;
     const code = `PR-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 899999)}`;
 
-    const { data: order, error: oErr } = await supabase
-      .from("orders")
+    const torobClickId = validTorobClickId(readCookie(getRequest().headers.get("cookie"), TOROB_CLICK_COOKIE));
+    const { data: order, error: oErr } = await (supabase
+      .from("orders") as any)
       .insert({
         user_id: context.userId,
         code,
@@ -231,6 +234,7 @@ export const placeOrder = createServerFn({ method: "POST" })
         status: "pending",
         note: data.note ?? null,
         shipping_address: data.address,
+        torob_clid: torobClickId,
       })
       .select("id, code")
       .single();

@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { TOROB_CLICK_COOKIE, validTorobClickId } from "./lib/torob/attribution";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -57,7 +58,12 @@ export default {
       }
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      const normalized = await normalizeCatastrophicSsrResponse(response);
+      const clickId = validTorobClickId(new URL(request.url).searchParams.get("torob_clid"));
+      if (!clickId) return normalized;
+      const headers = new Headers(normalized.headers);
+      headers.append("Set-Cookie", `${TOROB_CLICK_COOKIE}=${encodeURIComponent(clickId)}; Path=/; Max-Age=2592000; SameSite=Lax; Secure; HttpOnly`);
+      return new Response(normalized.body, { status: normalized.status, statusText: normalized.statusText, headers });
     } catch (error) {
       console.error(error);
       return new Response(renderErrorPage(), {

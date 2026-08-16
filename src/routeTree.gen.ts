@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CheckoutRouteImport } from './routes/checkout'
+import { Route as ProductSitemapDotxmlRouteImport } from './routes/product-sitemap[.]xml'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
@@ -27,12 +28,17 @@ import { Route as AuthenticatedAdminOrdersRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAdminProductsRouteImport } from './routes/_authenticated/admin/products'
 import { Route as AuthenticatedAdminReviewsRouteImport } from './routes/_authenticated/admin/reviews'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
+import { Route as AuthenticatedAdminTorobRouteImport } from './routes/_authenticated/admin/torob'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedOrdersIndexRouteImport } from './routes/_authenticated/orders.index'
 import { Route as AuthenticatedOrdersIdRouteImport } from './routes/_authenticated/orders.$id'
 import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
+import { Route as ApiTorobHealthRouteImport } from './routes/api/torob/health'
+import { Route as ApiTorobProductsRouteImport } from './routes/api/torob/products'
 import { Route as ApiPublicImgSplatRouteImport } from './routes/api/public/img.$'
 import { Route as ApiPublicModelSplatRouteImport } from './routes/api/public/model.$'
+import { Route as ApiTorobV1OrdersRouteImport } from './routes/api/torob/v1/orders'
+import { Route as ApiTorobWebhooksProcessRouteImport } from './routes/api/torob/webhooks/process'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -56,6 +62,11 @@ const CartRoute = CartRouteImport.update({
 const CheckoutRoute = CheckoutRouteImport.update({
   id: '/checkout',
   path: '/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductSitemapDotxmlRoute = ProductSitemapDotxmlRouteImport.update({
+  id: '/product-sitemap.xml',
+  path: '/product-sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -129,6 +140,11 @@ const AuthenticatedAdminSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminTorobRoute = AuthenticatedAdminTorobRouteImport.update({
+  id: '/torob',
+  path: '/torob',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -150,6 +166,16 @@ const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
   path: '/api/public/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTorobHealthRoute = ApiTorobHealthRouteImport.update({
+  id: '/api/torob/health',
+  path: '/api/torob/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTorobProductsRoute = ApiTorobProductsRouteImport.update({
+  id: '/api/torob/products',
+  path: '/api/torob/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicImgSplatRoute = ApiPublicImgSplatRouteImport.update({
   id: '/api/public/img/$',
   path: '/api/public/img/$',
@@ -160,12 +186,23 @@ const ApiPublicModelSplatRoute = ApiPublicModelSplatRouteImport.update({
   path: '/api/public/model/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTorobV1OrdersRoute = ApiTorobV1OrdersRouteImport.update({
+  id: '/api/torob/v1/orders',
+  path: '/api/torob/v1/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTorobWebhooksProcessRoute = ApiTorobWebhooksProcessRouteImport.update({
+  id: '/api/torob/webhooks/process',
+  path: '/api/torob/webhooks/process',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/product-sitemap.xml': typeof ProductSitemapDotxmlRoute
   '/search': typeof SearchRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/profile': typeof AuthenticatedProfileRoute
@@ -178,19 +215,25 @@ export interface FileRoutesByFullPath {
   '/admin/products': typeof AuthenticatedAdminProductsRoute
   '/admin/reviews': typeof AuthenticatedAdminReviewsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/admin/torob': typeof AuthenticatedAdminTorobRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/orders/$id': typeof AuthenticatedOrdersIdRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/torob/health': typeof ApiTorobHealthRoute
+  '/api/torob/products': typeof ApiTorobProductsRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/orders/': typeof AuthenticatedOrdersIndexRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/model/$': typeof ApiPublicModelSplatRoute
+  '/api/torob/v1/orders': typeof ApiTorobV1OrdersRoute
+  '/api/torob/webhooks/process': typeof ApiTorobWebhooksProcessRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/product-sitemap.xml': typeof ProductSitemapDotxmlRoute
   '/search': typeof SearchRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/payment/callback': typeof PaymentCallbackRoute
@@ -202,13 +245,18 @@ export interface FileRoutesByTo {
   '/admin/products': typeof AuthenticatedAdminProductsRoute
   '/admin/reviews': typeof AuthenticatedAdminReviewsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/admin/torob': typeof AuthenticatedAdminTorobRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/orders/$id': typeof AuthenticatedOrdersIdRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/torob/health': typeof ApiTorobHealthRoute
+  '/api/torob/products': typeof ApiTorobProductsRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/orders': typeof AuthenticatedOrdersIndexRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/model/$': typeof ApiPublicModelSplatRoute
+  '/api/torob/v1/orders': typeof ApiTorobV1OrdersRoute
+  '/api/torob/webhooks/process': typeof ApiTorobWebhooksProcessRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -217,6 +265,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/product-sitemap.xml': typeof ProductSitemapDotxmlRoute
   '/search': typeof SearchRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
@@ -229,13 +278,18 @@ export interface FileRoutesById {
   '/_authenticated/admin/products': typeof AuthenticatedAdminProductsRoute
   '/_authenticated/admin/reviews': typeof AuthenticatedAdminReviewsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/_authenticated/admin/torob': typeof AuthenticatedAdminTorobRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/orders/$id': typeof AuthenticatedOrdersIdRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/torob/health': typeof ApiTorobHealthRoute
+  '/api/torob/products': typeof ApiTorobProductsRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/orders/': typeof AuthenticatedOrdersIndexRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/model/$': typeof ApiPublicModelSplatRoute
+  '/api/torob/v1/orders': typeof ApiTorobV1OrdersRoute
+  '/api/torob/webhooks/process': typeof ApiTorobWebhooksProcessRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -244,6 +298,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cart'
     | '/checkout'
+    | '/product-sitemap.xml'
     | '/search'
     | '/admin'
     | '/profile'
@@ -256,19 +311,25 @@ export interface FileRouteTypes {
     | '/admin/products'
     | '/admin/reviews'
     | '/admin/settings'
+    | '/admin/torob'
     | '/admin/users'
     | '/orders/$id'
     | '/api/public/health'
+    | '/api/torob/health'
+    | '/api/torob/products'
     | '/admin/'
     | '/orders/'
     | '/api/public/img/$'
     | '/api/public/model/$'
+    | '/api/torob/v1/orders'
+    | '/api/torob/webhooks/process'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/cart'
     | '/checkout'
+    | '/product-sitemap.xml'
     | '/search'
     | '/profile'
     | '/payment/callback'
@@ -280,13 +341,18 @@ export interface FileRouteTypes {
     | '/admin/products'
     | '/admin/reviews'
     | '/admin/settings'
+    | '/admin/torob'
     | '/admin/users'
     | '/orders/$id'
     | '/api/public/health'
+    | '/api/torob/health'
+    | '/api/torob/products'
     | '/admin'
     | '/orders'
     | '/api/public/img/$'
     | '/api/public/model/$'
+    | '/api/torob/v1/orders'
+    | '/api/torob/webhooks/process'
   id:
     | '__root__'
     | '/'
@@ -294,6 +360,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cart'
     | '/checkout'
+    | '/product-sitemap.xml'
     | '/search'
     | '/_authenticated/admin'
     | '/_authenticated/profile'
@@ -306,13 +373,18 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/products'
     | '/_authenticated/admin/reviews'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/admin/torob'
     | '/_authenticated/admin/users'
     | '/_authenticated/orders/$id'
     | '/api/public/health'
+    | '/api/torob/health'
+    | '/api/torob/products'
     | '/_authenticated/admin/'
     | '/_authenticated/orders/'
     | '/api/public/img/$'
     | '/api/public/model/$'
+    | '/api/torob/v1/orders'
+    | '/api/torob/webhooks/process'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -321,13 +393,18 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   CartRoute: typeof CartRoute
   CheckoutRoute: typeof CheckoutRoute
+  ProductSitemapDotxmlRoute: typeof ProductSitemapDotxmlRoute
   SearchRoute: typeof SearchRoute
   PaymentCallbackRoute: typeof PaymentCallbackRoute
   ProductsSlugRoute: typeof ProductsSlugRoute
   ProductsIndexRoute: typeof ProductsIndexRoute
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
+  ApiTorobHealthRoute: typeof ApiTorobHealthRoute
+  ApiTorobProductsRoute: typeof ApiTorobProductsRoute
   ApiPublicImgSplatRoute: typeof ApiPublicImgSplatRoute
   ApiPublicModelSplatRoute: typeof ApiPublicModelSplatRoute
+  ApiTorobV1OrdersRoute: typeof ApiTorobV1OrdersRoute
+  ApiTorobWebhooksProcessRoute: typeof ApiTorobWebhooksProcessRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -365,6 +442,13 @@ declare module '@tanstack/react-router' {
       path: '/checkout'
       fullPath: '/checkout'
       preLoaderRoute: typeof CheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/product-sitemap.xml': {
+      id: '/product-sitemap.xml'
+      path: '/product-sitemap.xml'
+      fullPath: '/product-sitemap.xml'
+      preLoaderRoute: typeof ProductSitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -458,6 +542,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/torob': {
+      id: '/_authenticated/admin/torob'
+      path: '/torob'
+      fullPath: '/admin/torob'
+      preLoaderRoute: typeof AuthenticatedAdminTorobRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/users'
@@ -486,6 +577,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/torob/health': {
+      id: '/api/torob/health'
+      path: '/api/torob/health'
+      fullPath: '/api/torob/health'
+      preLoaderRoute: typeof ApiTorobHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/torob/products': {
+      id: '/api/torob/products'
+      path: '/api/torob/products'
+      fullPath: '/api/torob/products'
+      preLoaderRoute: typeof ApiTorobProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/img/$': {
       id: '/api/public/img/$'
       path: '/api/public/img/$'
@@ -500,6 +605,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicModelSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/torob/v1/orders': {
+      id: '/api/torob/v1/orders'
+      path: '/api/torob/v1/orders'
+      fullPath: '/api/torob/v1/orders'
+      preLoaderRoute: typeof ApiTorobV1OrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/torob/webhooks/process': {
+      id: '/api/torob/webhooks/process'
+      path: '/api/torob/webhooks/process'
+      fullPath: '/api/torob/webhooks/process'
+      preLoaderRoute: typeof ApiTorobWebhooksProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -510,6 +629,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminProductsRoute: typeof AuthenticatedAdminProductsRoute
   AuthenticatedAdminReviewsRoute: typeof AuthenticatedAdminReviewsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
+  AuthenticatedAdminTorobRoute: typeof AuthenticatedAdminTorobRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
@@ -522,6 +642,7 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminProductsRoute: AuthenticatedAdminProductsRoute,
     AuthenticatedAdminReviewsRoute: AuthenticatedAdminReviewsRoute,
     AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
+    AuthenticatedAdminTorobRoute: AuthenticatedAdminTorobRoute,
     AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   }
@@ -554,13 +675,18 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   CartRoute: CartRoute,
   CheckoutRoute: CheckoutRoute,
+  ProductSitemapDotxmlRoute: ProductSitemapDotxmlRoute,
   SearchRoute: SearchRoute,
   PaymentCallbackRoute: PaymentCallbackRoute,
   ProductsSlugRoute: ProductsSlugRoute,
   ProductsIndexRoute: ProductsIndexRoute,
   ApiPublicHealthRoute: ApiPublicHealthRoute,
+  ApiTorobHealthRoute: ApiTorobHealthRoute,
+  ApiTorobProductsRoute: ApiTorobProductsRoute,
   ApiPublicImgSplatRoute: ApiPublicImgSplatRoute,
   ApiPublicModelSplatRoute: ApiPublicModelSplatRoute,
+  ApiTorobV1OrdersRoute: ApiTorobV1OrdersRoute,
+  ApiTorobWebhooksProcessRoute: ApiTorobWebhooksProcessRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
