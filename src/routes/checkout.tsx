@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { placeOrder, getMyProfile } from "@/lib/account.functions";
-import { adminGetSettings } from "@/lib/admin.functions";
 import { startPayment, getPaymentGatewayInfo } from "@/lib/payment.functions";
 
 import { normalizeError } from "@/lib/error-handler";
@@ -11,6 +10,7 @@ import { AppShell } from "@/components/app-shell";
 import { PriceTag } from "@/components/price-tag";
 import { useCart } from "@/lib/cart-store";
 import { toFa } from "@/lib/rtl";
+import { calculateShippingAmount } from "@/lib/shipping";
 import { AlertCircle, Check } from "lucide-react";
 
 export const Route = createFileRoute("/checkout")({
@@ -83,7 +83,6 @@ function CheckoutPage() {
   const discountApplied = useCart((s) => s.discount);
   const account = useQuery({ queryKey: ["account"], queryFn: () => getMyProfile(), retry: false });
   const gateway = useQuery({ queryKey: ["payment-gateway"], queryFn: () => getPaymentGatewayInfo() });
-  const settings = useQuery({ queryKey: ["admin-settings"], queryFn: () => adminGetSettings() });
 
 
   useEffect(() => {
@@ -203,8 +202,7 @@ function CheckoutPage() {
     }
   }
 
-  const hasNonBookmark = items.some(it => !it.isBookmark);
-  const shipping = items.length > 0 ? (hasNonBookmark ? 180000 : 160000) : 0;
+  const shipping = calculateShippingAmount(items);
   
   const discountValue = discountApplied ? Math.round((subtotal * discountApplied.percent) / 100) : 0;
   const total = subtotal - discountValue + shipping;

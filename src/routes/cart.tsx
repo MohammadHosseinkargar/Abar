@@ -1,14 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ProductImage } from "@/components/product-image";
 import { PriceTag } from "@/components/price-tag";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { useCart } from "@/lib/cart-store";
 import { validateDiscount } from "@/lib/catalog.functions";
-import { adminGetSettings } from "@/lib/admin.functions";
 import { toFa } from "@/lib/rtl";
+import { calculateShippingAmount } from "@/lib/shipping";
 import { Trash2 } from "lucide-react";
 
 
@@ -34,10 +33,7 @@ function CartPage() {
   const setApplied = useCart((s) => s.setDiscount);
   const [error, setError] = useState<string | null>(null);
 
-  const settings = useQuery({ queryKey: ["admin-settings"], queryFn: () => adminGetSettings() });
-  
-  const hasNonBookmark = items.some(it => !it.isBookmark);
-  const shipping = items.length > 0 ? (hasNonBookmark ? 180000 : 160000) : 0;
+  const shipping = calculateShippingAmount(items);
   
   const discount = applied ? Math.round((subtotal * applied.percent) / 100) : 0;
   const total = subtotal - discount + shipping;

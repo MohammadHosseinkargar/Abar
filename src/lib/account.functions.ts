@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getRequest } from "@tanstack/react-start/server";
 import { readCookie, TOROB_CLICK_COOKIE, validTorobClickId } from "@/lib/torob/attribution";
+import { calculateShippingAmount } from "@/lib/shipping";
 
 export type OrderSummary = {
   id: string;
@@ -186,7 +187,7 @@ export const placeOrder = createServerFn({ method: "POST" })
     const ids = data.items.map((i) => i.productId);
     const { data: products, error: pErr } = await supabase
       .from("products")
-      .select("id, name, slug, price, stock, is_active")
+      .select("id, name, slug, price, stock, is_active, is_bookmark")
       .in("id", ids);
     if (pErr) throw pErr;
 
@@ -198,7 +199,11 @@ export const placeOrder = createServerFn({ method: "POST" })
     });
 
     const subtotal = lines.reduce((n, l) => n + Number(l.product.price) * l.qty, 0);
-    const shipping = data.shipping === "express" ? 120000 : 65000;
+    // Calculate on the server from trusted product data so the order, UI and
+    // payment gateway always use the same shipping amount.
+    const shipping = calculateShippingAmount(
+      lines.map((line) => ({ isBookmark: line.product.is_bookmark })),
+    );
 
     let discount = 0;
     let discountCode: string | null = null;
