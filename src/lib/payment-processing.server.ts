@@ -96,6 +96,8 @@ export async function processZibalCallback(orderId: string, callbackTrackId?: st
   }
 
   if (order.payment_status === "paid") {
+    const { deliverTelegramOrderNotificationSafely } = await import("@/lib/telegram.server");
+    await deliverTelegramOrderNotificationSafely(order.id);
     return { ok: true as const, code: order.code, orderId: order.id, refId: order.payment_ref_id };
   }
 
@@ -157,6 +159,8 @@ export async function processZibalCallback(orderId: string, callbackTrackId?: st
     paymentStatusAfter: "paid",
     orderStatusAfter: "processing",
   });
+  const { deliverTelegramOrderNotificationSafely } = await import("@/lib/telegram.server");
+  await deliverTelegramOrderNotificationSafely(order.id);
   return {
     ok: true as const,
     code: String(finalized.code ?? order.code),
