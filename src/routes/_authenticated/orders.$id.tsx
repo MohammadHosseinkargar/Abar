@@ -1,11 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PriceTag } from "@/components/price-tag";
 import { orderStatusFa, orderStatusSteps } from "@/data/orders";
 import { getMyOrder } from "@/lib/account.functions";
+import { startPayment } from "@/lib/payment.functions";
+import { normalizeError } from "@/lib/error-handler";
 import { toFa, faDate } from "@/lib/rtl";
-import { Check } from "lucide-react";
+import { Check, CreditCard, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/orders/$id")({
   head: () => ({
@@ -23,9 +26,24 @@ export const Route = createFileRoute("/_authenticated/orders/$id")({
 
 function OrderPage() {
   const { id } = Route.useParams();
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const { data: order, isLoading } = useQuery({
     queryKey: ["my-order", id],
     queryFn: () => getMyOrder({ data: { id } }),
+  });
+  const retryPayment = useMutation({
+    mutationFn: async (orderId: string) => {
+      const callbackUrl = window.location.origin.includes("localhost") || window.location.origin.includes("lovable.app")
+        ? `${window.location.origin}/payment/callback`
+        : "https://abar3d.ir/payment/callback";
+      return startPayment({ data: { orderId, callbackUrl } });
+    },
+    onMutate: () => setPaymentError(null),
+    onSuccess: (result) => {
+      if (result.mode === "redirect") window.location.href = result.url;
+      else window.location.reload();
+    },
+    onError: (error) => setPaymentError(normalizeError(error).error.message),
   });
 
   if (isLoading) {
@@ -66,7 +84,19 @@ function OrderPage() {
         </p>
 
         {awaitingOnlinePayment ? (
-          <p className="nbh-card mt-8 p-4 text-sm">این سفارش هنوز پرداخت نشده و وارد مرحله آماده‌سازی نشده است.</p>
+          <div className="nbh-card mt-8 p-4 text-sm sm:p-6">
+            <p>این سفارش هنوز پرداخت نشده و وارد مرحله آماده‌سازی نشده است.</p>
+            <button
+              type="button"
+              onClick={() => retryPayment.mutate(order.id)}
+              disabled={retryPayment.isPending}
+              className="nbh-border nbh-sh-sm nbh-lift mt-4 inline-flex items-center gap-2 bg-ink px-5 py-2.5 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-60"
+            >
+              {retryPayment.isPending ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+              {retryPayment.isPending ? "در حال اتصال به درگاه…" : "پرداخت مجدد"}
+            </button>
+            {paymentError && <p className="mt-3 text-hot">{paymentError}</p>}
+          </div>
         ) : order.status === "cancelled" ? (
           <p className="nbh-card mt-8 p-4 text-sm">این سفارش لغو شده است.</p>
         ) : (

@@ -20,6 +20,46 @@ async function getPaymentSettings(supabase: any) {
   };
 }
 
+type ZibalVerifyResponse = {
+  result: number;
+  amount?: number;
+  refNumber?: number;
+  message?: string;
+  orderId?: string;
+};
+
+async function verifyWithZibal(merchant: string, trackId: string): Promise<ZibalVerifyResponse> {
+  const res = await fetch("https://gateway.zibal.ir/v1/verify", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ merchant, trackId: Number(trackId) }),
+  });
+  if (!res.ok) throw new Error("ZIBAL_UNAVAILABLE");
+  return (await res.json()) as ZibalVerifyResponse;
+}
+
+function assertVerifiedAmount(result: ZibalVerifyResponse, orderTotal: number) {
+  if (result.result === 201) return;
+  const amount = Math.round(result.amount || 0);
+  const expected = Math.round(orderTotal * 10);
+  const legacy = Math.round(orderTotal);
+  if (amount !== expected && amount !== legacy) throw new Error("PAYMENT_AMOUNT_MISMATCH");
+}
+
+async function markOrderPaid(supabase: any, orderId: string, result: ZibalVerifyResponse) {
+  const { error } = await supabase
+    .from("orders")
+    .update({
+      payment_status: "paid",
+      status: "processing",
+      ...(result.refNumber ? { payment_ref_id: String(result.refNumber) } : {}),
+      paid_at: new Date().toISOString(),
+    })
+    .eq("id", orderId)
+    .eq("payment_status", "unpaid");
+  if (error) throw error;
+}
+
 export const getPaymentGatewayInfo = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -78,7 +118,7 @@ export const startPayment = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: order, error } = await context.supabase
       .from("orders")
-      .select("id, code, total, payment_status")
+      .select("id, code, total, payment_status, payment_authority")
       .eq("id", data.orderId)
       .maybeSingle();
     
@@ -87,6 +127,16 @@ export const startPayment = createServerFn({ method: "POST" })
     if (order.payment_status === "paid") return { mode: "already-paid" as const };
 
     const settings = await getPaymentSettings(context.supabase);
+
+    // Reconcile the previous attempt before issuing another payment request.
+    if (order.payment_authority) {
+      const previous = await verifyWithZibal(settings.merchant, String(order.payment_authority));
+      if (previous.result === 100 || previous.result === 201) {
+        assertVerifiedAmount(previous, Number(order.total));
+        await markOrderPaid(context.supabase, order.id, previous);
+        return { mode: "already-paid" as const };
+      }
+    }
 
     // If both disabled and no merchant, or explicitly disabled
     if (!settings.enabled && settings.merchant === "zibal") {
@@ -150,10 +200,12 @@ const verifySchema = z.object({
 });
 
 export const verifyPayment = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => verifySchema.parse(input))
-  .handler(async ({ data, context }) => {
-    const { data: order, error } = await context.supabase
+  .handler(async ({ data }) => {
+    // A bank callback must not depend on the customer's access token surviving
+    // an external browser/app round-trip. Zibal remains the source of truth.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: order, error } = await supabaseAdmin
       .from("orders")
       .select("id, code, total, payment_status, payment_authority")
       .eq("id", data.orderId)
@@ -171,29 +223,8 @@ export const verifyPayment = createServerFn({ method: "POST" })
       throw new Error("PAYMENT_VERIFY_FAILED");
     }
 
-    // Zibal returns success=1 and status=1 on successful payment redirection back to callback
-    if (data.success !== "1" && data.status !== "1") {
-      throw new Error("PAYMENT_CANCELED");
-    }
-
-    const settings = await getPaymentSettings(context.supabase);
-    
-    const res = await fetch("https://gateway.zibal.ir/v1/verify", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        merchant: settings.merchant,
-        trackId: Number(data.trackId),
-      }),
-    });
-
-    const json = (await res.json()) as { 
-      result: number; 
-      amount?: number; 
-      refNumber?: number; 
-      message?: string;
-      orderId?: string;
-    };
+    const settings = await getPaymentSettings(supabaseAdmin);
+    const json = await verifyWithZibal(settings.merchant, data.trackId);
 
     // 201 is also safe: the same transaction was already verified by an earlier callback.
     if (json.result !== 100 && json.result !== 201) {
@@ -201,24 +232,8 @@ export const verifyPayment = createServerFn({ method: "POST" })
       throw new Error(errorCode);
     }
 
-    // Securely check amount
-    const verifiedAmount = Math.round(json.amount || 0);
-    const expectedAmount = Math.round(Number(order.total) * 10);
-    // Keep callbacks for transactions created before the toman/rial fix verifiable.
-    const legacyAmount = Math.round(Number(order.total));
-    if (json.result !== 201 && verifiedAmount !== expectedAmount && verifiedAmount !== legacyAmount) {
-      throw new Error("PAYMENT_AMOUNT_MISMATCH");
-    }
-
-    await context.supabase
-      .from("orders")
-      .update({
-        payment_status: "paid",
-        status: "processing",
-        payment_ref_id: json.refNumber ? String(json.refNumber) : null,
-        paid_at: new Date().toISOString(),
-      })
-      .eq("id", order.id);
+    assertVerifiedAmount(json, Number(order.total));
+    await markOrderPaid(supabaseAdmin, order.id, json);
 
     return {
       ok: true as const,
