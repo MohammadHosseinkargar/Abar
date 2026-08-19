@@ -50,6 +50,25 @@ systemctl reload nginx
 
 if command -v ufw >/dev/null 2>&1; then
   ufw allow 'Nginx Full'
+
+  # Keep Torob's documented crawlers explicitly allowed even if this VPS is
+  # later switched to a restrictive/default-deny firewall policy. The first
+  # range is split so only 81.12.31.192 through 81.12.31.254 is admitted.
+  TOROB_NETWORKS=(
+    "81.12.31.192/27"
+    "81.12.31.224/28"
+    "81.12.31.240/29"
+    "81.12.31.248/30"
+    "81.12.31.252/31"
+    "81.12.31.254/32"
+    "91.107.165.81/32"
+    "188.121.119.29/32"
+    "195.201.30.135/32"
+  )
+  for network in "${TOROB_NETWORKS[@]}"; do
+    ufw allow proto tcp from "${network}" to any port 80 comment 'Torob API'
+    ufw allow proto tcp from "${network}" to any port 443 comment 'Torob API'
+  done
 fi
 
 if ! curl --fail --silent --show-error --max-time 10 "http://${APP_UPSTREAM}/api/public/health" >/dev/null; then

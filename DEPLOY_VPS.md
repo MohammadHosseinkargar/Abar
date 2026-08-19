@@ -43,6 +43,17 @@ sudo bash scripts/setup-nginx-ssl.sh YOUR_EMAIL
 curl -fsS https://abar3d.ir/api/public/health
 ```
 
+If Torob reports a network timeout, explicitly allow its crawler networks in
+the VPS firewall (the command is idempotent):
+
+```bash
+sudo bash scripts/allow-torob-ips.sh
+curl -fsS https://abar3d.ir/api/torob/health
+```
+
+If the VPS provider has a separate cloud firewall/security group, add the same
+source networks shown in that script there for inbound TCP ports 80 and 443.
+
 The setup script installs Nginx and Certbot, configures the reverse proxy, obtains the certificate, enables HTTPS redirects, and tests renewal. Ports 80 and 443 must be reachable and DNS must already point to the VPS.
 
 When any public Supabase value changes, rebuild the image because `VITE_` values are embedded during the frontend build:
