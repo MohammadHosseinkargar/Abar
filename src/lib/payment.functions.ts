@@ -113,7 +113,10 @@ export const startPayment = createServerFn({ method: "POST" })
 
 const verifySchema = z.object({
   orderId: z.string().uuid(),
-  trackId: z.string().regex(/^\d{1,30}$/),
+  trackId: z
+    .string()
+    .regex(/^\d{1,30}$/)
+    .optional(),
   success: z.string().optional(),
   status: z.string().optional(),
 });

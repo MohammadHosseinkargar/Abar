@@ -46,7 +46,21 @@ async function postZibal<T>(
   }
 
   try {
-    return (await response.json()) as T;
+    const body = (await response.json()) as T;
+    const safeBody = body as Record<string, unknown>;
+    console.info("[payment:zibal] gateway response received", {
+      stage: path === "verify" ? "VERIFY_RESPONSE_RECEIVED" : "PAYMENT_REQUEST_RESPONSE_RECEIVED",
+      operation: path,
+      httpStatus: response.status,
+      result: safeBody.result,
+      status: safeBody.status,
+      trackId: safeBody.trackId == null ? undefined : String(safeBody.trackId),
+      amount: safeBody.amount,
+      refNumber: safeBody.refNumber == null ? undefined : String(safeBody.refNumber),
+      paidAt: safeBody.paidAt,
+      message: safeBody.message,
+    });
+    return body;
   } catch {
     console.error("[payment:zibal] gateway returned invalid JSON", { operation: path });
     throw new Error("ZIBAL_UNAVAILABLE");

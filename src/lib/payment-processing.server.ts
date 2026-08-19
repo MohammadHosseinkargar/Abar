@@ -63,7 +63,7 @@ export async function recordPaymentAttempt(
     });
 }
 
-export async function processZibalCallback(orderId: string, trackId: string) {
+export async function processZibalCallback(orderId: string, callbackTrackId?: string) {
   const { data: order, error } = await supabaseAdmin
     .from("orders")
     .select("id, code, total, payment_status, payment_authority, payment_ref_id")
@@ -72,8 +72,26 @@ export async function processZibalCallback(orderId: string, trackId: string) {
 
   if (error) throw error;
   if (!order) throw new Error("PAYMENT_ORDER_NOT_FOUND");
-  if (String(order.payment_authority ?? "") !== trackId) {
-    console.warn("[payment:zibal] callback trackId mismatch", { orderId });
+  const storedTrackId = String(order.payment_authority ?? "");
+  const trackId = callbackTrackId || storedTrackId;
+
+  console.info("[payment:zibal] order loaded for verification", {
+    stage: "CALLBACK_ORDER_LOADED",
+    orderId,
+    callbackTrackIdPresent: Boolean(callbackTrackId),
+    storedTrackIdPresent: Boolean(storedTrackId),
+    paymentStatusBefore: order.payment_status,
+  });
+
+  if (!/^\d{1,30}$/.test(trackId)) {
+    console.warn("[payment:zibal] invalid trackId", { stage: "INVALID_TRACK_ID", orderId });
+    throw new Error("PAYMENT_INVALID_TRACK_ID");
+  }
+  if (callbackTrackId && storedTrackId !== callbackTrackId) {
+    console.warn("[payment:zibal] callback trackId mismatch", {
+      stage: "INVALID_TRACK_ID",
+      orderId,
+    });
     throw new Error("PAYMENT_VERIFY_FAILED");
   }
 
@@ -85,6 +103,11 @@ export async function processZibalCallback(orderId: string, trackId: string) {
   if (!settings.enabled || !settings.merchant) throw new Error("ZIBAL_INVALID_MERCHANT");
 
   await recordPaymentAttempt(trackId, order.id, "verifying");
+  console.info("[payment:zibal] verification request sent", {
+    stage: "VERIFY_REQUEST_SENT",
+    orderId,
+    trackId,
+  });
   const result = await verifyZibalPayment(settings.merchant, trackId);
 
   if (result.result !== 100 && result.result !== 201) {
@@ -95,6 +118,7 @@ export async function processZibalCallback(orderId: string, trackId: string) {
       result.result,
     );
     console.warn("[payment:zibal] verification rejected", {
+      stage: "VERIFY_FAILED",
       orderId,
       gatewayResult: result.result,
     });
@@ -115,13 +139,23 @@ export async function processZibalCallback(orderId: string, trackId: string) {
       _paid_at: result.paidAt || new Date().toISOString(),
     },
   );
-  if (finalizeError) throw finalizeError;
+  if (finalizeError) {
+    console.error("[payment:zibal] order finalization failed", {
+      stage: "ORDER_UPDATE_FAILED",
+      orderId,
+      code: "code" in finalizeError ? finalizeError.code : undefined,
+    });
+    throw finalizeError;
+  }
   if (!finalized?.paid) throw new Error("PAYMENT_VERIFY_FAILED");
 
   await recordPaymentAttempt(trackId, order.id, "paid", result.result);
   console.info("[payment:zibal] order payment finalized", {
+    stage: "ORDER_AND_PAYMENT_PAID",
     orderId,
     gatewayResult: result.result,
+    paymentStatusAfter: "paid",
+    orderStatusAfter: "processing",
   });
   return {
     ok: true as const,
