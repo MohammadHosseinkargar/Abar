@@ -24,3 +24,21 @@ export function faDate(iso: string): string {
     return toFa(iso.slice(0, 10));
   }
 }
+
+export function faDateTime(iso: string): string {
+  try {
+    return toFa(
+      new Intl.DateTimeFormat("fa-IR", {
+        timeZone: "Asia/Tehran",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(new Date(iso)),
+    );
+  } catch {
+    return toFa(iso);
+  }
+}

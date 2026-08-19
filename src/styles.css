@@ -70,6 +70,15 @@
 :root {
   --radius: 0.5rem;
 
+  /* Keep fixed mobile navigation and document flow in sync. */
+  /* Brief SSR fallback; ResizeObserver replaces this with the rendered height. */
+  --mobile-tab-bar-height: 4.25rem;
+  --mobile-tab-bar-offset: 1.5rem;
+  --mobile-tab-bar-clearance: calc(
+    var(--mobile-tab-bar-height) + var(--mobile-tab-bar-offset) +
+      env(safe-area-inset-bottom, 0px) + 1rem
+  );
+
   /* Grayscale ramp */
   --gray-0: oklch(0.99 0 0);      /* #fcfcfc */
   --gray-50: oklch(0.985 0 0);    /* #fafafa */
@@ -123,6 +132,20 @@
   --sidebar-accent-foreground: var(--gray-900);
   --sidebar-border: var(--gray-200);
   --sidebar-ring: var(--gray-400);
+}
+
+.app-shell-main {
+  padding-bottom: var(--mobile-tab-bar-clearance);
+}
+
+.mobile-tab-bar {
+  bottom: calc(var(--mobile-tab-bar-offset) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 48rem) {
+  .app-shell-main {
+    padding-bottom: 0;
+  }
 }
 
 .dark {

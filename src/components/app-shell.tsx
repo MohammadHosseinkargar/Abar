@@ -4,7 +4,7 @@ import { Home, LayoutGrid, ShoppingBag, User, Search } from "lucide-react";
 import { CartDrawer } from "./cart-drawer";
 import { useCart } from "@/lib/cart-store";
 import { toFa } from "@/lib/rtl";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { NotificationBell } from "./notification-bell";
 import { motion, AnimatePresence } from "framer-motion";
@@ -122,6 +122,7 @@ function DesktopFooter() {
 }
 
 function MobileTabBar() {
+  const navRef = useRef<HTMLElement>(null);
   const path = useRouterState({ select: (s) => s.location.pathname });
   const totalItems = useCart((s) => s.totalItems());
   const tabs = [
@@ -131,8 +132,31 @@ function MobileTabBar() {
     { to: "/profile", label: "حساب", icon: User },
   ] as const;
 
+  useEffect(() => {
+    const nav = navRef.current;
+    const shell = nav?.closest<HTMLElement>(".app-shell");
+    if (!nav || !shell) return;
+
+    const updateHeight = () => {
+      shell.style.setProperty("--mobile-tab-bar-height", `${nav.getBoundingClientRect().height}px`);
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(nav);
+    window.addEventListener("resize", updateHeight);
+    window.visualViewport?.addEventListener("resize", updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeight);
+      window.visualViewport?.removeEventListener("resize", updateHeight);
+      shell.style.removeProperty("--mobile-tab-bar-height");
+    };
+  }, []);
+
   return (
-    <nav className="md:hidden fixed bottom-6 inset-x-4 z-50 pointer-events-none">
+    <nav ref={navRef} className="mobile-tab-bar md:hidden fixed inset-x-4 z-50 pointer-events-none">
       <div className="mx-auto max-w-sm pointer-events-auto">
         <div className="relative flex items-center justify-between gap-1 p-2 rounded-full border border-white/20 glass shadow-2xl backdrop-blur-2xl">
           {tabs.map((t) => {
@@ -179,7 +203,6 @@ function MobileTabBar() {
           })}
         </div>
       </div>
-      <div className="h-[env(safe-area-inset-bottom)]" />
     </nav>
   );
 }
@@ -193,9 +216,9 @@ export function AppShell({
   variant?: "default" | "nbh";
 }) {
   return (
-    <div className={`min-h-screen flex flex-col${variant === "nbh" ? " nbh" : ""}`}>
+    <div className={`app-shell min-h-dvh flex flex-col${variant === "nbh" ? " nbh" : ""}`}>
       <TopBar />
-      <main className="flex-1">{children}</main>
+      <main className="app-shell-main flex-1">{children}</main>
       <DesktopFooter />
       {/* Footer removed for mobile per requirements */}
       <div className="md:hidden">

@@ -33,10 +33,7 @@ function OrderPage() {
   });
   const retryPayment = useMutation({
     mutationFn: async (orderId: string) => {
-      const callbackUrl = window.location.origin.includes("localhost") || window.location.origin.includes("lovable.app")
-        ? `${window.location.origin}/payment/callback`
-        : "https://abar3d.ir/payment/callback";
-      return startPayment({ data: { orderId, callbackUrl } });
+      return startPayment({ data: { orderId } });
     },
     onMutate: () => setPaymentError(null),
     onSuccess: (result) => {

@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { adminListOrders, adminUpdateOrder } from "@/lib/admin.functions";
 import { AdminHeader, Panel, Btn, Field, inputCls, Tag, num, Empty } from "@/components/admin/kit";
 import { orderStatusFa, type OrderStatus } from "@/data/orders";
-import { faDate } from "@/lib/rtl";
+import { faDateTime } from "@/lib/rtl";
 
 export const Route = createFileRoute("/_authenticated/admin/orders")({
   component: AdminOrders,
@@ -59,7 +59,13 @@ function AdminOrders() {
                   <Tag>{orderStatusFa[o.status as OrderStatus] ?? o.status}</Tag>
                   <Tag tone={o.paymentStatus === "paid" ? "ok" : "warn"}>{paymentFa[o.paymentStatus]}</Tag>
                   <span className="text-xs text-ink-3">{o.address?.receiver ?? "—"}</span>
-                  <span className="ms-auto text-xs text-ink-3">{faDate(o.createdAt)}</span>
+                  <span
+                    className="ms-auto text-xs text-ink-3"
+                    title={o.paidAt ? "زمان پرداخت" : "زمان ثبت سفارش"}
+                  >
+                    {o.paidAt ? "پرداخت: " : "ثبت: "}
+                    {faDateTime(o.paidAt ?? o.createdAt)}
+                  </span>
                   <span className="font-mono text-xs">{num(o.total)}</span>
                   <ChevronDown size={14} className={`transition-transform ${open === o.id ? "rotate-180" : ""}`} />
                 </button>

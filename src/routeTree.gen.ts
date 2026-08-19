@@ -35,6 +35,7 @@ import { Route as AuthenticatedOrdersIdRouteImport } from './routes/_authenticat
 import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
 import { Route as ApiTorobHealthRouteImport } from './routes/api/torob/health'
 import { Route as ApiTorobProductsRouteImport } from './routes/api/torob/products'
+import { Route as ApiPaymentZibalCallbackRouteImport } from './routes/api/payment/zibal/callback'
 import { Route as ApiPublicImgSplatRouteImport } from './routes/api/public/img.$'
 import { Route as ApiPublicModelSplatRouteImport } from './routes/api/public/model.$'
 import { Route as ApiTorobV1OrdersRouteImport } from './routes/api/torob/v1/orders'
@@ -176,6 +177,11 @@ const ApiTorobProductsRoute = ApiTorobProductsRouteImport.update({
   path: '/api/torob/products',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPaymentZibalCallbackRoute = ApiPaymentZibalCallbackRouteImport.update({
+  id: '/api/payment/zibal/callback',
+  path: '/api/payment/zibal/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicImgSplatRoute = ApiPublicImgSplatRouteImport.update({
   id: '/api/public/img/$',
   path: '/api/public/img/$',
@@ -223,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/api/torob/products': typeof ApiTorobProductsRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/orders/': typeof AuthenticatedOrdersIndexRoute
+  '/api/payment/zibal/callback': typeof ApiPaymentZibalCallbackRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/model/$': typeof ApiPublicModelSplatRoute
   '/api/torob/v1/orders': typeof ApiTorobV1OrdersRoute
@@ -253,6 +260,7 @@ export interface FileRoutesByTo {
   '/api/torob/products': typeof ApiTorobProductsRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/orders': typeof AuthenticatedOrdersIndexRoute
+  '/api/payment/zibal/callback': typeof ApiPaymentZibalCallbackRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/model/$': typeof ApiPublicModelSplatRoute
   '/api/torob/v1/orders': typeof ApiTorobV1OrdersRoute
@@ -286,6 +294,7 @@ export interface FileRoutesById {
   '/api/torob/products': typeof ApiTorobProductsRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/orders/': typeof AuthenticatedOrdersIndexRoute
+  '/api/payment/zibal/callback': typeof ApiPaymentZibalCallbackRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/model/$': typeof ApiPublicModelSplatRoute
   '/api/torob/v1/orders': typeof ApiTorobV1OrdersRoute
@@ -319,6 +328,7 @@ export interface FileRouteTypes {
     | '/api/torob/products'
     | '/admin/'
     | '/orders/'
+    | '/api/payment/zibal/callback'
     | '/api/public/img/$'
     | '/api/public/model/$'
     | '/api/torob/v1/orders'
@@ -349,6 +359,7 @@ export interface FileRouteTypes {
     | '/api/torob/products'
     | '/admin'
     | '/orders'
+    | '/api/payment/zibal/callback'
     | '/api/public/img/$'
     | '/api/public/model/$'
     | '/api/torob/v1/orders'
@@ -381,6 +392,7 @@ export interface FileRouteTypes {
     | '/api/torob/products'
     | '/_authenticated/admin/'
     | '/_authenticated/orders/'
+    | '/api/payment/zibal/callback'
     | '/api/public/img/$'
     | '/api/public/model/$'
     | '/api/torob/v1/orders'
@@ -401,6 +413,7 @@ export interface RootRouteChildren {
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
   ApiTorobHealthRoute: typeof ApiTorobHealthRoute
   ApiTorobProductsRoute: typeof ApiTorobProductsRoute
+  ApiPaymentZibalCallbackRoute: typeof ApiPaymentZibalCallbackRoute
   ApiPublicImgSplatRoute: typeof ApiPublicImgSplatRoute
   ApiPublicModelSplatRoute: typeof ApiPublicModelSplatRoute
   ApiTorobV1OrdersRoute: typeof ApiTorobV1OrdersRoute
@@ -591,6 +604,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTorobProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/payment/zibal/callback': {
+      id: '/api/payment/zibal/callback'
+      path: '/api/payment/zibal/callback'
+      fullPath: '/api/payment/zibal/callback'
+      preLoaderRoute: typeof ApiPaymentZibalCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/img/$': {
       id: '/api/public/img/$'
       path: '/api/public/img/$'
@@ -683,6 +703,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHealthRoute: ApiPublicHealthRoute,
   ApiTorobHealthRoute: ApiTorobHealthRoute,
   ApiTorobProductsRoute: ApiTorobProductsRoute,
+  ApiPaymentZibalCallbackRoute: ApiPaymentZibalCallbackRoute,
   ApiPublicImgSplatRoute: ApiPublicImgSplatRoute,
   ApiPublicModelSplatRoute: ApiPublicModelSplatRoute,
   ApiTorobV1OrdersRoute: ApiTorobV1OrdersRoute,

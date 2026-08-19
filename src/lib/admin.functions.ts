@@ -184,9 +184,17 @@ export const adminDeleteProduct = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const db = await admin();
-    const { error } = await db.from("products").delete().eq("id", data.id);
+    // Products referenced by historical orders must remain as immutable
+    // snapshots. "Delete" therefore archives the catalog record.
+    const { data: archived, error } = await db
+      .from("products")
+      .update({ is_active: false, featured: false, stock: 0 })
+      .eq("id", data.id)
+      .select("id")
+      .maybeSingle();
     if (error) throw error;
-    return { ok: true };
+    if (!archived) throw new Error("محصول پیدا نشد.");
+    return { ok: true, archived: true };
   });
 
 /* ---------------- categories ---------------- */
@@ -250,13 +258,14 @@ export const adminListOrders = createServerFn({ method: "GET" })
     const db = await admin();
     const { data, error } = await db
       .from("orders")
-      .select("id, code, created_at, status, payment_status, total, tracking_code, shipping_address, order_items(id, name, qty, price, color, size)")
+      .select("id, code, created_at, paid_at, status, payment_status, total, tracking_code, shipping_address, order_items(id, name, qty, price, color, size)")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return (data ?? []).map((o) => ({
       id: o.id,
       code: o.code,
       createdAt: o.created_at,
+      paidAt: o.paid_at,
       status: o.status,
       paymentStatus: o.payment_status,
       total: Number(o.total),

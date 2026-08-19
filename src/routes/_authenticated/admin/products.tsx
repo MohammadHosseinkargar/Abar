@@ -61,7 +61,9 @@ function AdminProducts() {
   });
   const remove = useMutation({
     mutationFn: (id: string) => adminDeleteProduct({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries(),
+    onMutate: () => setError(""),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-products"] }),
+    onError: (e: Error) => setError(e.message),
   });
 
   const edit = (p: Row) =>

@@ -179,12 +179,8 @@ function CheckoutPage() {
         },
       });
       if (form.payment === "gateway") {
-        const callbackUrl = window.location.origin.includes("localhost") || window.location.origin.includes("lovable.app")
-          ? `${window.location.origin}/payment/callback`
-          : "https://abar3d.ir/payment/callback";
-          
         const pay = await startPayment({
-          data: { orderId: res.id, callbackUrl },
+          data: { orderId: res.id },
         });
         if (pay.mode === "redirect") {
           clear();

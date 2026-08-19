@@ -140,7 +140,7 @@ function CartPage() {
                 </div>
               </div>
 
-            <aside className="nbh-card p-5 h-fit sticky top-20 bg-surface">
+            <aside className="nbh-card p-5 h-fit bg-surface md:sticky md:top-20">
               <p className="font-mono text-[10px] tracking-widest text-ink-3 uppercase">[ SUMMARY ]</p>
 
               <div className="mt-4 space-y-2 text-sm">
@@ -163,9 +163,6 @@ function CartPage() {
                 </div>
                 {error && <p className="mt-2 text-xs text-hot">{error}</p>}
                 {applied && <p className="mt-2 text-xs text-ink-2">✓ {applied.label} اعمال شد.</p>}
-                <p className="mt-2 font-mono text-[10px] text-ink-3">
-                  کدهای فعال: WELCOME10 · PRINT20
-                </p>
               </div>
 
               <div className="mt-4 border-t-2 border-ink pt-4 flex items-baseline justify-between">
