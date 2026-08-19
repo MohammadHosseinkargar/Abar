@@ -10,7 +10,6 @@ async function assertAdmin(supabase: unknown, userId: string) {
   if (data !== true) throw new Error("دسترسی مدیریتی ندارید.");
 }
 
-
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin;
@@ -26,7 +25,10 @@ export const getAdminAccess = createServerFn({ method: "GET" })
       _role: "admin",
     });
     const db = await admin();
-    const { count } = await db.from("user_roles").select("id", { count: "exact", head: true }).eq("role", "admin");
+    const { count } = await db
+      .from("user_roles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "admin");
     return { isAdmin: data === true, adminExists: (count ?? 0) > 0 };
   });
 
@@ -35,9 +37,14 @@ export const claimFirstAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const db = await admin();
-    const { count } = await db.from("user_roles").select("id", { count: "exact", head: true }).eq("role", "admin");
+    const { count } = await db
+      .from("user_roles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "admin");
     if ((count ?? 0) > 0) throw new Error("مدیر قبلاً تعیین شده است.");
-    const { error } = await db.from("user_roles").insert({ user_id: context.userId, role: "admin" });
+    const { error } = await db
+      .from("user_roles")
+      .insert({ user_id: context.userId, role: "admin" });
     if (error) throw error;
     return { ok: true };
   });
@@ -50,7 +57,10 @@ export const adminOverview = createServerFn({ method: "GET" })
     await assertAdmin(context.supabase, context.userId);
     const db = await admin();
     const [orders, products, users, reviews] = await Promise.all([
-      db.from("orders").select("id, code, total, status, payment_status, created_at").order("created_at", { ascending: false }),
+      db
+        .from("orders")
+        .select("id, code, total, status, payment_status, created_at")
+        .order("created_at", { ascending: false }),
       db.from("products").select("id, stock, is_active"),
       db.from("profiles").select("id", { count: "exact", head: true }),
       db.from("reviews").select("id", { count: "exact", head: true }).eq("approved", false),
@@ -83,9 +93,19 @@ export const adminTorobOverview = createServerFn({ method: "GET" })
     const db = await admin();
     const [products, pending, sent, recent] = await Promise.all([
       db.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
-      (db as any).from("torob_webhook_queue").select("id", { count: "exact", head: true }).in("status", ["pending", "processing", "failed"]),
-      (db as any).from("torob_webhook_queue").select("id", { count: "exact", head: true }).eq("status", "sent"),
-      (db as any).from("torob_sync_events").select("success,item_count,message,created_at").order("created_at", { ascending: false }).limit(10),
+      (db as any)
+        .from("torob_webhook_queue")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["pending", "processing", "failed"]),
+      (db as any)
+        .from("torob_webhook_queue")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "sent"),
+      (db as any)
+        .from("torob_sync_events")
+        .select("success,item_count,message,created_at")
+        .order("created_at", { ascending: false })
+        .limit(10),
     ]);
     return {
       productsAvailable: products.count ?? 0,
@@ -110,15 +130,26 @@ export const adminListProducts = createServerFn({ method: "GET" })
     const db = await admin();
     const { data, error } = await db
       .from("products")
-      .select("id, slug, name, category_slug, price, compare_at, stock, featured, is_active, material, color, size_mm, description, image_url, model_url, image_urls, model_urls, available_colors, available_sizes, is_bookmark")
+      .select(
+        "id, slug, name, category_slug, price, compare_at, stock, featured, is_active, material, color, size_mm, description, image_url, model_url, image_urls, model_urls, available_colors, available_sizes, is_bookmark",
+      )
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return (data ?? []).map((p) => ({ ...p, price: Number(p.price), compare_at: p.compare_at ? Number(p.compare_at) : null }));
+    return (data ?? []).map((p) => ({
+      ...p,
+      price: Number(p.price),
+      compare_at: p.compare_at ? Number(p.compare_at) : null,
+    }));
   });
 
 const productSchema = z.object({
   id: z.string().uuid().optional().nullable(),
-  slug: z.string().trim().min(2).max(60).regex(/^[a-z0-9-]+$/, "اسلاگ فقط حروف انگلیسی کوچک و خط تیره"),
+  slug: z
+    .string()
+    .trim()
+    .min(2)
+    .max(60)
+    .regex(/^[a-z0-9-]+$/, "اسلاگ فقط حروف انگلیسی کوچک و خط تیره"),
   name: z.string().trim().min(2).max(120),
   categorySlug: z.string().trim().min(1).max(60),
   price: z.number().int().min(0).max(1_000_000_000),
@@ -139,7 +170,6 @@ const productSchema = z.object({
   isBookmark: z.boolean().optional(),
   modelMetadata: z.record(z.any()).optional(),
   imageMetadata: z.record(z.any()).optional(),
-
 });
 
 export const adminSaveProduct = createServerFn({ method: "POST" })
@@ -184,17 +214,17 @@ export const adminDeleteProduct = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const db = await admin();
-    // Products referenced by historical orders must remain as immutable
-    // snapshots. "Delete" therefore archives the catalog record.
-    const { data: archived, error } = await db
+    // Historical order details live in order_items. Its product_id foreign key
+    // uses ON DELETE SET NULL, so deleting the catalog row preserves receipts.
+    const { data: deleted, error } = await db
       .from("products")
-      .update({ is_active: false, featured: false, stock: 0 })
+      .delete()
       .eq("id", data.id)
       .select("id")
       .maybeSingle();
     if (error) throw error;
-    if (!archived) throw new Error("محصول پیدا نشد.");
-    return { ok: true, archived: true };
+    if (!deleted) throw new Error("محصول پیدا نشد.");
+    return { ok: true, deleted: true };
   });
 
 /* ---------------- categories ---------------- */
@@ -218,19 +248,29 @@ export const adminSaveCategory = createServerFn({ method: "POST" })
     z
       .object({
         id: z.string().uuid().optional().nullable(),
-        slug: z.string().trim().min(2).max(60).regex(/^[a-z0-9-]+$/),
+        slug: z
+          .string()
+          .trim()
+          .min(2)
+          .max(60)
+          .regex(/^[a-z0-9-]+$/),
         name: z.string().trim().min(1).max(80),
         tagline: z.string().trim().max(140).optional().nullable(),
         sortOrder: z.number().int().min(0).max(999),
         imageUrl: z.string().trim().max(500).optional().nullable(),
-
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const db = await admin();
-    const row = { slug: data.slug, name: data.name, tagline: data.tagline ?? null, sort_order: data.sortOrder, image_url: data.imageUrl ?? null };
+    const row = {
+      slug: data.slug,
+      name: data.name,
+      tagline: data.tagline ?? null,
+      sort_order: data.sortOrder,
+      image_url: data.imageUrl ?? null,
+    };
     const { error } = data.id
       ? await db.from("categories").update(row).eq("id", data.id)
       : await db.from("categories").insert(row);
@@ -258,7 +298,9 @@ export const adminListOrders = createServerFn({ method: "GET" })
     const db = await admin();
     const { data, error } = await db
       .from("orders")
-      .select("id, code, created_at, paid_at, status, payment_status, total, tracking_code, shipping_address, order_items(id, name, qty, price, color, size)")
+      .select(
+        "id, code, created_at, paid_at, status, payment_status, total, tracking_code, shipping_address, order_items(id, name, qty, price, color, size)",
+      )
       .order("created_at", { ascending: false });
     if (error) throw error;
     return (data ?? []).map((o) => ({
@@ -271,7 +313,14 @@ export const adminListOrders = createServerFn({ method: "GET" })
       total: Number(o.total),
       trackingCode: o.tracking_code,
       address: o.shipping_address as Record<string, string> | null,
-      items: (o.order_items ?? []).map((i) => ({ id: i.id, name: i.name, qty: i.qty, price: Number(i.price), color: i.color, size: i.size })),
+      items: (o.order_items ?? []).map((i) => ({
+        id: i.id,
+        name: i.name,
+        qty: i.qty,
+        price: Number(i.price),
+        color: i.color,
+        size: i.size,
+      })),
     }));
   });
 
@@ -310,7 +359,10 @@ export const adminListUsers = createServerFn({ method: "GET" })
     await assertAdmin(context.supabase, context.userId);
     const db = await admin();
     const [{ data: profiles }, { data: roles }, { data: orders }, list] = await Promise.all([
-      db.from("profiles").select("id, full_name, phone, created_at").order("created_at", { ascending: false }),
+      db
+        .from("profiles")
+        .select("id, full_name, phone, created_at")
+        .order("created_at", { ascending: false }),
       db.from("user_roles").select("user_id, role"),
       db.from("orders").select("user_id, total, payment_status"),
       db.auth.admin.listUsers({ page: 1, perPage: 200 }),
@@ -347,7 +399,11 @@ export const adminSetRole = createServerFn({ method: "POST" })
         .upsert({ user_id: data.userId, role: "admin" }, { onConflict: "user_id,role" });
       if (error) throw error;
     } else {
-      const { error } = await db.from("user_roles").delete().eq("user_id", data.userId).eq("role", "admin");
+      const { error } = await db
+        .from("user_roles")
+        .delete()
+        .eq("user_id", data.userId)
+        .eq("role", "admin");
       if (error) throw error;
     }
     return { ok: true };
@@ -441,7 +497,10 @@ export const adminSetReviewApproval = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const db = await admin();
-    const { error } = await db.from("reviews").update({ approved: data.approved }).eq("id", data.id);
+    const { error } = await db
+      .from("reviews")
+      .update({ approved: data.approved })
+      .eq("id", data.id);
     if (error) throw error;
     return { ok: true };
   });
