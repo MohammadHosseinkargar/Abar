@@ -33,6 +33,10 @@ nano .env
 
 Fill every placeholder in `.env`. `SUPABASE_URL` and `VITE_SUPABASE_URL` must be identical. `SUPABASE_PUBLISHABLE_KEY` and `VITE_SUPABASE_PUBLISHABLE_KEY` must also be identical. The storefront can start without `SUPABASE_SERVICE_ROLE_KEY`, but admin and other privileged operations require it. Ensure the DNS records for `abar3d.ir` point to the VPS.
 
+Before deploying a revision that adds a file under `supabase/migrations`, apply
+that SQL to the hosted Supabase project (SQL Editor or your normal migration
+pipeline). Docker Compose does not apply database migrations automatically.
+
 ## 3. Deploy
 
 ```bash
@@ -41,6 +45,13 @@ docker compose up -d --build
 docker compose ps
 sudo bash scripts/setup-nginx-ssl.sh YOUR_EMAIL
 curl -fsS https://abar3d.ir/api/public/health
+```
+
+Confirm server-only Telegram values reached the running container without
+printing the secrets:
+
+```bash
+docker compose exec app sh -lc 'test -n "$TELEGRAM_BOT_TOKEN" && test -n "$TELEGRAM_ADMIN_CHAT_ID" && echo "Telegram env: OK"'
 ```
 
 If Torob reports a network timeout, explicitly allow its crawler networks in
