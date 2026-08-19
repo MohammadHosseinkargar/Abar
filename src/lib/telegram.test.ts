@@ -48,7 +48,7 @@ describe("Telegram paid-order notification", () => {
 
   it("uses a media group for multiple unique public images", async () => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "secret-token");
-    vi.stubEnv("TELEGRAM_ADMIN_CHAT_ID", "123");
+    vi.stubEnv("TELEGRAM_ADMIN_CHAT_IDS", "123,456");
     const fetchMock = vi
       .fn()
       .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
@@ -63,9 +63,21 @@ describe("Telegram paid-order notification", () => {
     expect(body.media).toHaveLength(2);
   });
 
+  it("can target a specific admin from a multi-admin configuration", async () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "secret-token");
+    vi.stubEnv("TELEGRAM_ADMIN_CHAT_IDS", "123, 456,123");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await sendTelegramOrder({ ...payload, imageUrls: [] }, "456");
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.chat_id).toBe("456");
+  });
+
   it("sends text when no product image exists", async () => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "secret-token");
-    vi.stubEnv("TELEGRAM_ADMIN_CHAT_ID", "123");
+    vi.stubEnv("TELEGRAM_ADMIN_CHAT_IDS", "123");
     const fetchMock = vi
       .fn()
       .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
@@ -76,7 +88,7 @@ describe("Telegram paid-order notification", () => {
 
   it("resolves uploaded relative image paths against APP_URL", async () => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "secret-token");
-    vi.stubEnv("TELEGRAM_ADMIN_CHAT_ID", "123");
+    vi.stubEnv("TELEGRAM_ADMIN_CHAT_IDS", "123");
     vi.stubEnv("APP_URL", "https://abar3d.ir");
     const fetchMock = vi
       .fn()
@@ -89,7 +101,7 @@ describe("Telegram paid-order notification", () => {
 
   it("does not expose Telegram API descriptions in thrown errors", async () => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "secret-token");
-    vi.stubEnv("TELEGRAM_ADMIN_CHAT_ID", "123");
+    vi.stubEnv("TELEGRAM_ADMIN_CHAT_IDS", "123");
     vi.stubGlobal(
       "fetch",
       vi

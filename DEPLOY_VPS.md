@@ -51,7 +51,7 @@ Confirm server-only Telegram values reached the running container without
 printing the secrets:
 
 ```bash
-docker compose exec app sh -lc 'test -n "$TELEGRAM_BOT_TOKEN" && test -n "$TELEGRAM_ADMIN_CHAT_ID" && echo "Telegram env: OK"'
+docker compose exec app sh -lc 'test -n "$TELEGRAM_BOT_TOKEN" && test -n "$TELEGRAM_ADMIN_CHAT_IDS" && echo "Telegram env: OK"'
 ```
 
 If Torob reports a network timeout, explicitly allow its crawler networks in

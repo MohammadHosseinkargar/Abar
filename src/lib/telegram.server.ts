@@ -99,9 +99,18 @@ export function formatTelegramOrder(payload: TelegramOrderPayload): string {
 
 function telegramConfig() {
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
-  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID?.trim();
-  if (!token || !chatId) throw new Error("TELEGRAM_NOT_CONFIGURED");
-  return { token, chatId };
+  const rawChatIds =
+    process.env.TELEGRAM_ADMIN_CHAT_IDS?.trim() || process.env.TELEGRAM_ADMIN_CHAT_ID?.trim();
+  const chatIds = [
+    ...new Set(
+      (rawChatIds ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter((value) => /^-?\d+$/.test(value)),
+    ),
+  ];
+  if (!token || chatIds.length === 0) throw new Error("TELEGRAM_NOT_CONFIGURED");
+  return { token, chatIds };
 }
 
 function publicImageUrl(value: string): string | null {
@@ -143,8 +152,12 @@ async function telegramCall(method: "sendMessage" | "sendPhoto" | "sendMediaGrou
   }
 }
 
-export async function sendTelegramOrder(payload: TelegramOrderPayload): Promise<void> {
-  const { chatId } = telegramConfig();
+export async function sendTelegramOrder(
+  payload: TelegramOrderPayload,
+  recipientChatId?: string,
+): Promise<void> {
+  const { chatIds } = telegramConfig();
+  const chatId = recipientChatId ?? chatIds[0];
   const text = formatTelegramOrder(payload);
   const images = [
     ...new Set(payload.imageUrls.map(publicImageUrl).filter((url): url is string => Boolean(url))),
@@ -216,34 +229,63 @@ async function loadOrderPayload(orderId: string): Promise<TelegramOrderPayload> 
 }
 
 export async function deliverTelegramOrderNotification(orderId: string): Promise<boolean> {
-  const { data: claimed, error: claimError } = await supabaseAdmin.rpc(
-    "claim_telegram_order_notification" as never,
-    { _order_id: orderId } as never,
-  );
-  if (claimError) throw claimError;
-  if (!claimed) return false;
+  const { chatIds } = telegramConfig();
+  const recipientRows = chatIds.map((chatId) => ({ order_id: orderId, chat_id: chatId }));
+  const { error: recipientError } = await supabaseAdmin
+    .from("telegram_order_notification_recipients" as never)
+    .upsert(recipientRows as never, { onConflict: "order_id,chat_id", ignoreDuplicates: true });
+  if (recipientError) throw recipientError;
 
-  try {
-    await sendTelegramOrder(await loadOrderPayload(orderId));
-    const { error } = await supabaseAdmin
-      .from("telegram_order_notifications" as never)
-      .update({ status: "sent", sent_at: new Date().toISOString(), last_error: null } as never)
-      .eq("order_id", orderId);
-    if (error) throw error;
-    console.info("[telegram:order] notification sent", { orderId });
-    return true;
-  } catch (error) {
-    const code =
-      error instanceof Error && /^[A-Z0-9_]+$/.test(error.message)
-        ? error.message
-        : "TELEGRAM_DELIVERY_FAILED";
-    await supabaseAdmin
-      .from("telegram_order_notifications" as never)
-      .update({ status: "failed", last_error: code } as never)
-      .eq("order_id", orderId);
-    console.error("[telegram:order] notification failed", { orderId, code });
-    throw error;
+  const payload = await loadOrderPayload(orderId);
+  let delivered = false;
+  let anyFailed = false;
+
+  for (const chatId of chatIds) {
+    const { data: claimed, error: claimError } = await supabaseAdmin.rpc(
+      "claim_telegram_order_notification_recipient" as never,
+      { _order_id: orderId, _chat_id: chatId } as never,
+    );
+    if (claimError) throw claimError;
+    if (!claimed) continue;
+
+    try {
+      await sendTelegramOrder(payload, chatId);
+      const { error: sentError } = await supabaseAdmin
+        .from("telegram_order_notification_recipients" as never)
+        .update({ status: "sent", sent_at: new Date().toISOString(), last_error: null } as never)
+        .eq("order_id", orderId)
+        .eq("chat_id", chatId);
+      if (sentError) throw sentError;
+      delivered = true;
+      console.info("[telegram:order] recipient notified", { orderId });
+    } catch (error) {
+      anyFailed = true;
+      const code =
+        error instanceof Error && /^[A-Z0-9_]+$/.test(error.message)
+          ? error.message
+          : "TELEGRAM_DELIVERY_FAILED";
+      const { error: failedError } = await supabaseAdmin
+        .from("telegram_order_notification_recipients" as never)
+        .update({ status: "failed", last_error: code } as never)
+        .eq("order_id", orderId)
+        .eq("chat_id", chatId);
+      if (failedError)
+        console.error("[telegram:order] could not persist recipient failure", { orderId });
+      console.error("[telegram:order] recipient notification failed", { orderId, code });
+    }
   }
+
+  if (!delivered && !anyFailed) return false;
+  const { error: aggregateError } = await supabaseAdmin
+    .from("telegram_order_notifications" as never)
+    .update({
+      status: anyFailed ? "failed" : "sent",
+      sent_at: anyFailed ? null : new Date().toISOString(),
+      last_error: anyFailed ? "TELEGRAM_RECIPIENT_FAILED" : null,
+    } as never)
+    .eq("order_id", orderId);
+  if (aggregateError) throw aggregateError;
+  return delivered;
 }
 
 export async function deliverTelegramOrderNotificationSafely(orderId: string): Promise<void> {
