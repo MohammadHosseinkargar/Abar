@@ -26,4 +26,15 @@ describe("calculateShippingAmount", () => {
   it("treats missing bookmark metadata as a regular product", () => {
     expect(calculateShippingAmount([{}])).toBe(REGULAR_SHIPPING_TOMAN);
   });
+
+  it("makes delivery to Mashhad free regardless of product type", () => {
+    expect(calculateShippingAmount([{ isBookmark: false }], "مشهد")).toBe(0);
+    expect(calculateShippingAmount([{ isBookmark: true }], "  مشهد   مقدس ")).toBe(0);
+  });
+
+  it("does not confuse similarly named cities with Mashhad", () => {
+    expect(calculateShippingAmount([{ isBookmark: false }], "مشهدی ریزه")).toBe(
+      REGULAR_SHIPPING_TOMAN,
+    );
+  });
 });

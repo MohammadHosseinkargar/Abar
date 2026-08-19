@@ -203,6 +203,7 @@ export const placeOrder = createServerFn({ method: "POST" })
     // payment gateway always use the same shipping amount.
     const shipping = calculateShippingAmount(
       lines.map((line) => ({ isBookmark: line.product.is_bookmark })),
+      data.address.city,
     );
 
     let discount = 0;

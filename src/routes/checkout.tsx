@@ -198,7 +198,7 @@ function CheckoutPage() {
     }
   }
 
-  const shipping = calculateShippingAmount(items);
+  const shipping = calculateShippingAmount(items, form.city);
   
   const discountValue = discountApplied ? Math.round((subtotal * discountApplied.percent) / 100) : 0;
   const total = subtotal - discountValue + shipping;
@@ -315,7 +315,11 @@ function CheckoutPage() {
                             <p className="text-xs font-bold text-ink-3 group-hover:text-ink-2 transition-colors">{opt.body}</p>
                           </div>
                         </div>
-                        <PriceTag price={opt.price} size="sm" />
+                        {opt.price === 0 ? (
+                          <span className="text-sm font-black text-ink">رایگان</span>
+                        ) : (
+                          <PriceTag price={opt.price} size="sm" />
+                        )}
                       </label>
                     ))}
                   </div>
@@ -429,7 +433,9 @@ function CheckoutPage() {
               </div>
               <div className="flex justify-between items-center text-ink-2">
                 <span className="font-bold">هزینه ارسال</span>
-                <span className="font-mono tabular font-black">{toFa(shipping.toLocaleString("en-US"))}</span>
+                <span className="font-mono tabular font-black">
+                  {shipping === 0 ? "رایگان" : toFa(shipping.toLocaleString("en-US"))}
+                </span>
               </div>
               {discountValue > 0 && (
                 <div className="flex justify-between items-center text-hot">
