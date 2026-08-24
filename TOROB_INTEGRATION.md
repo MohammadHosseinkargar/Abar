@@ -19,7 +19,7 @@ Set these only in the runtime secret store or server `.env`:
 
 ```dotenv
 APP_URL=https://abar3d.ir
-TOROB_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...value supplied by Torob...\n-----END PUBLIC KEY-----"
+TOROB_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAt6Mu4T0pBORY11W+QeM35UsmLO3vsf+6yKpFDEImFk0=\n-----END PUBLIC KEY-----"
 TOROB_TOKEN_VERSION=1
 TOROB_WEBHOOK_TOKEN=
 TOROB_WEBHOOK_URL=https://api.torob.com/update/webhook/v1/
@@ -27,7 +27,7 @@ TOROB_QUEUE_SECRET=
 TOROB_ORDER_TRACKING_ENABLED=false
 ```
 
-`TOROB_PUBLIC_KEY` and `TOROB_WEBHOOK_TOKEN` must be obtained/confirmed with Torob support. Generate `TOROB_QUEUE_SECRET` as a high-entropy internal secret; it is not supplied by Torob. Keep Order Tracking disabled until Torob has enabled it for the shop and the migration is deployed.
+`TOROB_PUBLIC_KEY` is Torob's published Ed25519 verification key, not a secret. `TOROB_WEBHOOK_TOKEN` must be obtained/confirmed with Torob support. Generate `TOROB_QUEUE_SECRET` as a high-entropy internal secret; it is not supplied by Torob. Keep Order Tracking disabled until Torob has enabled it for the shop and the migration is deployed. The health endpoint reports `configuration: incomplete` when the configured public key is absent or malformed.
 
 ## Database migration
 

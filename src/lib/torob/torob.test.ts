@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { torobProductRequestSchema } from "./schema";
 import { mapTorobProduct, TOROB_PAGE_SIZE, isTorobVisible } from "./products.server";
-import { verifyTorobRequest } from "./auth.server";
+import { TorobAuthenticationError, verifyTorobRequest } from "./auth.server";
 import { readCookie, validTorobClickId } from "./attribution";
 import { torobRetryDelaySeconds } from "./webhook.server";
 import { handleTorobWebhookProcess, processTorobWebhookQueue } from "./webhook.server";
@@ -143,6 +143,17 @@ describe("authentication and attribution", () => {
     expect(() =>
       verifyTorobRequest(new Request("https://abar3d.ir/api/torob/products")),
     ).toThrow());
+  it("rejects a signed request when the configured public key is malformed", () => {
+    const request = signedRequest();
+    process.env.TOROB_PUBLIC_KEY = "not-a-public-key";
+    expect(() => verifyTorobRequest(request)).toThrow(TorobAuthenticationError);
+    try {
+      verifyTorobRequest(request);
+    } catch (error) {
+      expect(error).toBeInstanceOf(TorobAuthenticationError);
+      expect((error as TorobAuthenticationError).failure).toBe("configuration_invalid_public_key");
+    }
+  });
   it("validates torob_clid", () => expect(validTorobClickId("abc_123-xyz")).toBe("abc_123-xyz"));
   it("reads torob_clid cookie", () =>
     expect(readCookie("a=1; torob_clid=click-1", "torob_clid")).toBe("click-1"));
@@ -150,7 +161,9 @@ describe("authentication and attribution", () => {
 
 describe("webhook retry", () => {
   it("keeps Product API ready without a webhook token", () => {
-    process.env.TOROB_PUBLIC_KEY = "configured-public-key";
+    process.env.TOROB_PUBLIC_KEY = generateKeyPairSync("ed25519")
+      .publicKey.export({ type: "spki", format: "pem" })
+      .toString();
     expect(getTorobConfigurationState()).toMatchObject({
       ready: true,
       productApiReady: true,
@@ -158,9 +171,21 @@ describe("webhook retry", () => {
     });
   });
   it("requires the Product API token version", () => {
-    process.env.TOROB_PUBLIC_KEY = "configured-public-key";
+    process.env.TOROB_PUBLIC_KEY = generateKeyPairSync("ed25519")
+      .publicKey.export({ type: "spki", format: "pem" })
+      .toString();
     delete process.env.TOROB_TOKEN_VERSION;
     expect(getTorobConfigurationState().productApiReady).toBe(false);
+  });
+  it("does not report a malformed public key as Product API ready", () => {
+    process.env.TOROB_PUBLIC_KEY = "not-a-public-key";
+    process.env.TOROB_TOKEN_VERSION = "1";
+    expect(getTorobConfigurationState()).toMatchObject({
+      publicKey: true,
+      validPublicKey: false,
+      productApiReady: false,
+      ready: false,
+    });
   });
   it("does not claim or send queued events without a webhook token", async () => {
     await expect(processTorobWebhookQueue()).resolves.toEqual({

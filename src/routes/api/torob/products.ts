@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ZodError } from "zod";
-import { verifyTorobRequest, unauthorized } from "@/lib/torob/auth.server";
+import {
+  TorobAuthenticationError,
+  verifyTorobRequest,
+  unauthorized,
+} from "@/lib/torob/auth.server";
 import { fetchTorobProducts } from "@/lib/torob/products.server";
 import { torobProductRequestSchema } from "@/lib/torob/schema";
 import { allowTorobRequest } from "@/lib/torob/rate-limit.server";
@@ -12,7 +16,13 @@ export const Route = createFileRoute("/api/torob/products")({
         const started = Date.now();
         try {
           verifyTorobRequest(request);
-        } catch {
+        } catch (error) {
+          console.warn("[Torob Product API] authorization rejected", {
+            method: request.method,
+            endpoint: new URL(request.url).pathname,
+            host: new URL(request.url).host,
+            failure: error instanceof TorobAuthenticationError ? error.failure : "unexpected_error",
+          });
           return unauthorized();
         }
         if (!allowTorobRequest(request))

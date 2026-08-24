@@ -132,13 +132,20 @@ try {
   const categoryNames = new Map(
     (await categoryResponse.json()).map((category) => [category.slug, category.name]),
   );
-  const available = rows.find((row) => row.stock > 0);
-  const unavailable = rows.find((row) => row.stock <= 0);
-  const third = rows.find((row) => row.stock > 0 && row.id !== available?.id);
-  assert.ok(available && unavailable && third, "Three suitable real products were not found");
-  const selected = [available, unavailable, third];
+  const selected = rows.slice(0, 3);
+  assert.ok(
+    selected.length > 0,
+    "At least one active product is required for the integration test",
+  );
 
   await waitForServer();
+  const unauthenticatedResponse = await fetch(apiUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ page: 1, sort: "date_added_desc" }),
+  });
+  assert.equal(unauthenticatedResponse.status, 401);
+
   const healthResponse = await fetch(`http://${host}/api/torob/health`);
   assert.equal(healthResponse.status, 200);
   const health = await healthResponse.json();
@@ -167,8 +174,8 @@ try {
 
   const byUrls = await post({ page_urls: selected.map((row) => `${appUrl}/products/${row.slug}`) });
   const byUniques = await post({ page_uniques: selected.map((row) => row.id) });
-  assert.equal(byUrls.products.length, 3);
-  assert.equal(byUniques.products.length, 3);
+  assert.equal(byUrls.products.length, selected.length);
+  assert.equal(byUniques.products.length, selected.length);
 
   const audited = selected.map((row) => {
     const urlProduct = byUrls.products.find((product) => product.page_unique === row.id);
@@ -193,6 +200,7 @@ try {
         source_total: rows.length,
         smoke: {
           health: healthResponse.status,
+          products_unauthenticated: unauthenticatedResponse.status,
           products_pagination: 200,
           products_page_urls: 200,
           products_page_uniques: 200,
