@@ -113,15 +113,26 @@ describe("product mapping", () => {
 });
 
 describe("authentication and attribution", () => {
-  function signedRequest(audience = "abar3d.ir", expired = false) {
+  function signedRequest({
+    audience = "abar3d.ir",
+    algorithm = "EdDSA",
+    expiresAt = Math.floor(Date.now() / 1000) + 60,
+    notBefore = Math.floor(Date.now() / 1000) - 5,
+    tokenVersion = "1",
+  }: {
+    audience?: string;
+    algorithm?: string;
+    expiresAt?: number;
+    notBefore?: number;
+    tokenVersion?: string;
+  } = {}) {
     const { publicKey, privateKey } = generateKeyPairSync("ed25519");
     process.env.TOROB_PUBLIC_KEY = publicKey.export({ type: "spki", format: "pem" }).toString();
-    const now = Math.floor(Date.now() / 1000);
-    const header = Buffer.from(JSON.stringify({ alg: "EdDSA", typ: "JWT", v: 1 })).toString(
+    const header = Buffer.from(JSON.stringify({ alg: algorithm, typ: "JWT", v: 1 })).toString(
       "base64url",
     );
     const payload = Buffer.from(
-      JSON.stringify({ aud: audience, nbf: now - 5, exp: expired ? now - 1 : now + 60 }),
+      JSON.stringify({ aud: audience, nbf: notBefore, exp: expiresAt }),
     ).toString("base64url");
     const signature = sign(null, Buffer.from(`${header}.${payload}`), privateKey).toString(
       "base64url",
@@ -129,16 +140,55 @@ describe("authentication and attribution", () => {
     return new Request("https://abar3d.ir/api/torob/products", {
       headers: {
         "X-Torob-Token": `${header}.${payload}.${signature}`,
-        "X-Torob-Token-Version": "1",
+        "X-Torob-Token-Version": tokenVersion,
       },
     });
   }
   it("accepts valid authentication", () =>
     expect(() => verifyTorobRequest(signedRequest())).not.toThrow());
+  it("uses the configured public API hostname rather than an internal upstream hostname", () => {
+    const request = signedRequest();
+    expect(() =>
+      verifyTorobRequest(
+        new Request("http://127.0.0.1:3000/api/torob/products", {
+          headers: request.headers,
+        }),
+      ),
+    ).not.toThrow();
+  });
   it("rejects invalid audience", () =>
-    expect(() => verifyTorobRequest(signedRequest("other.example"))).toThrow());
+    expect(() => verifyTorobRequest(signedRequest({ audience: "other.example" }))).toThrow());
   it("rejects expired authentication", () =>
-    expect(() => verifyTorobRequest(signedRequest("abar3d.ir", true))).toThrow());
+    expect(() =>
+      verifyTorobRequest(signedRequest({ expiresAt: Math.floor(Date.now() / 1000) - 1 })),
+    ).toThrow());
+  it("rejects authentication that is not yet valid", () =>
+    expect(() =>
+      verifyTorobRequest(signedRequest({ notBefore: Math.floor(Date.now() / 1000) + 60 })),
+    ).toThrow());
+  it("rejects a JWT with the wrong algorithm", () =>
+    expect(() => verifyTorobRequest(signedRequest({ algorithm: "HS256" }))).toThrow());
+  it("rejects a wrong token-version header", () =>
+    expect(() => verifyTorobRequest(signedRequest({ tokenVersion: "2" }))).toThrow());
+  it("rejects a missing token-version header", () => {
+    const request = signedRequest();
+    const headers = new Headers(request.headers);
+    headers.delete("X-Torob-Token-Version");
+    expect(() => verifyTorobRequest(new Request(request.url, { headers }))).toThrow();
+  });
+  it("rejects malformed and invalid-signature JWTs", () => {
+    expect(() =>
+      verifyTorobRequest(
+        new Request("https://abar3d.ir/api/torob/products", {
+          headers: { "X-Torob-Token": "malformed", "X-Torob-Token-Version": "1" },
+        }),
+      ),
+    ).toThrow();
+    const request = signedRequest();
+    const headers = new Headers(request.headers);
+    headers.set("X-Torob-Token", `${headers.get("X-Torob-Token")!}x`);
+    expect(() => verifyTorobRequest(new Request(request.url, { headers }))).toThrow();
+  });
   it("rejects missing authentication", () =>
     expect(() =>
       verifyTorobRequest(new Request("https://abar3d.ir/api/torob/products")),
@@ -177,6 +227,13 @@ describe("webhook retry", () => {
     delete process.env.TOROB_TOKEN_VERSION;
     expect(getTorobConfigurationState().productApiReady).toBe(false);
   });
+  it("does not report another token version as Product API ready", () => {
+    process.env.TOROB_PUBLIC_KEY = generateKeyPairSync("ed25519")
+      .publicKey.export({ type: "spki", format: "pem" })
+      .toString();
+    process.env.TOROB_TOKEN_VERSION = "2";
+    expect(getTorobConfigurationState().productApiReady).toBe(false);
+  });
   it("does not report a malformed public key as Product API ready", () => {
     process.env.TOROB_PUBLIC_KEY = "not-a-public-key";
     process.env.TOROB_TOKEN_VERSION = "1";
@@ -186,6 +243,12 @@ describe("webhook retry", () => {
       productApiReady: false,
       ready: false,
     });
+  });
+  it("does not accept a parseable non-Ed25519 public key", () => {
+    process.env.TOROB_PUBLIC_KEY = generateKeyPairSync("rsa", { modulusLength: 2048 })
+      .publicKey.export({ type: "spki", format: "pem" })
+      .toString();
+    expect(getTorobConfigurationState().validPublicKey).toBe(false);
   });
   it("does not claim or send queued events without a webhook token", async () => {
     await expect(processTorobWebhookQueue()).resolves.toEqual({

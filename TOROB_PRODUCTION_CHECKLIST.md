@@ -10,6 +10,7 @@
 - [x] Order attribution code implemented but deliberately disabled.
 - [ ] Remote Torob migration applied and verified.
 - [ ] Real Torob public key configured in production.
+- [ ] VPS clock is synchronized (`timedatectl status` shows `System clock synchronized: yes`); Docker uses the host clock for JWT `exp`/`nbf` checks.
 - [ ] Webhook token configured when Torob webhook delivery is ready (optional for Product API).
 - [ ] Queue worker cron configured.
 - [ ] Final smoke tests executed against the deployed `https://abar3d.ir` endpoints.

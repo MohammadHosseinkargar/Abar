@@ -39,9 +39,9 @@ function jwt() {
   const header = Buffer.from(JSON.stringify({ alg: "EdDSA", typ: "JWT", v: 1 })).toString(
     "base64url",
   );
-  const payload = Buffer.from(JSON.stringify({ aud: host, nbf: now - 5, exp: now + 60 })).toString(
-    "base64url",
-  );
+  const payload = Buffer.from(
+    JSON.stringify({ aud: new URL(appUrl).host, nbf: now - 5, exp: now + 60 }),
+  ).toString("base64url");
   const signature = sign(null, Buffer.from(`${header}.${payload}`), privateKey).toString(
     "base64url",
   );
@@ -145,6 +145,32 @@ try {
     body: JSON.stringify({ page: 1, sort: "date_added_desc" }),
   });
   assert.equal(unauthenticatedResponse.status, 401);
+  const missingVersionResponse = await fetch(apiUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-torob-token": jwt() },
+    body: JSON.stringify({ page: 1, sort: "date_added_desc" }),
+  });
+  assert.equal(missingVersionResponse.status, 401);
+  const malformedTokenResponse = await fetch(apiUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-torob-token": "malformed",
+      "x-torob-token-version": "1",
+    },
+    body: JSON.stringify({ page: 1, sort: "date_added_desc" }),
+  });
+  assert.equal(malformedTokenResponse.status, 401);
+  const malformedBodyResponse = await fetch(apiUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-torob-token": jwt(),
+      "x-torob-token-version": "1",
+    },
+    body: JSON.stringify({}),
+  });
+  assert.equal(malformedBodyResponse.status, 400);
 
   const healthResponse = await fetch(`http://${host}/api/torob/health`);
   assert.equal(healthResponse.status, 200);
@@ -201,6 +227,9 @@ try {
         smoke: {
           health: healthResponse.status,
           products_unauthenticated: unauthenticatedResponse.status,
+          products_missing_token_version: missingVersionResponse.status,
+          products_malformed_token: malformedTokenResponse.status,
+          products_malformed_body: malformedBodyResponse.status,
           products_pagination: 200,
           products_page_urls: 200,
           products_page_uniques: 200,

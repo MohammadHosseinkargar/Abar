@@ -1,9 +1,10 @@
 import "@tanstack/react-start/server-only";
-import { createPublicKey, verify } from "node:crypto";
-import { getTorobConfig, hasValidTorobPublicKey } from "./config.server";
+import { verify } from "node:crypto";
+import { getTorobConfig, getTorobVerificationKey } from "./config.server";
 
 export type TorobAuthenticationFailure =
   | "configuration_invalid_public_key"
+  | "configuration_invalid_token_version"
   | "missing_or_invalid_headers"
   | "invalid_jwt"
   | "invalid_algorithm_or_version"
@@ -34,12 +35,14 @@ function audienceMatches(value: unknown, expected: string): boolean {
 
 export function verifyTorobRequest(request: Request): void {
   const config = getTorobConfig();
-  if (!config.publicKey || !hasValidTorobPublicKey())
+  const verificationKey = getTorobVerificationKey();
+  if (!config.publicKey || !verificationKey)
     throw new TorobAuthenticationError("configuration_invalid_public_key");
+  if (config.tokenVersion !== "1")
+    throw new TorobAuthenticationError("configuration_invalid_token_version");
   const version = request.headers.get("x-torob-token-version");
   const token = request.headers.get("x-torob-token")?.trim();
-  if (version !== config.tokenVersion || !token)
-    throw new TorobAuthenticationError("missing_or_invalid_headers");
+  if (version !== "1" || !token) throw new TorobAuthenticationError("missing_or_invalid_headers");
 
   const parts = token.split(".");
   if (parts.length !== 3) throw new TorobAuthenticationError("invalid_jwt");
@@ -58,15 +61,15 @@ export function verifyTorobRequest(request: Request): void {
     throw new TorobAuthenticationError("expired_jwt");
   if (typeof payload.nbf !== "number" || now < payload.nbf)
     throw new TorobAuthenticationError("inactive_jwt");
-  const host = new URL(request.url).host;
-  if (!audienceMatches(payload.aud, host)) throw new TorobAuthenticationError("invalid_audience");
+  if (!audienceMatches(payload.aud, config.apiHost))
+    throw new TorobAuthenticationError("invalid_audience");
 
   let valid = false;
   try {
     valid = verify(
       null,
       Buffer.from(`${encodedHeader}.${encodedPayload}`),
-      createPublicKey(config.publicKey),
+      verificationKey,
       Buffer.from(encodedSignature!, "base64url"),
     );
   } catch {
