@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Eye, FilePlus2, Pencil, Plus, Printer, Trash2, X } from "lucide-react";
+import * as pdfLib from "pdf-lib";
+import html2canvas from "html2canvas";
+import { BarChart3, Eye, FilePlus2, Pencil, Plus, Printer, Trash2, X, Download } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -47,8 +49,8 @@ import {
 } from "@/components/admin/kit";
 
 const money = (value: unknown) => formatToman(Number(value ?? 0));
+const moneyInt = (value: unknown) => Number(value ?? 0);
 const date = (value: unknown) => (value ? faDate(String(value)) : "—");
-const selectCls = `${inputCls} py-2`;
 const paymentLabel: Record<string, string> = {
   unpaid: "پرداخت نشده",
   partial: "بخشی پرداخت شده",
@@ -62,6 +64,143 @@ const methodLabel: Record<string, string> = {
   gateway: "درگاه",
   other: "سایر",
 };
+
+// Export Invoice as PDF
+async function exportInvoicePDF(invoiceId: string) {
+  try {
+    const invoiceData = await accountingGetInvoice({ data: { id: invoiceId } } as any);
+    const settings = await accountingGetSettings();
+
+    // Create a DOM element for the invoice
+    const container = document.createElement("div");
+    container.style.position = "absolute";
+    container.style.left = "-9999px";
+    container.style.top = "-9999px";
+    container.style.width = "210mm";
+    container.style.padding = "20mm";
+    container.style.fontFamily = "Vazirmatn, sans-serif";
+    container.style.background = "white";
+    container.style.minHeight = "297mm";
+    container.innerHTML = `
+      <div style="border: 1px solid #000; padding: 20mm; min-height: 297mm; font-family: Vazirmatn, sans-serif;">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+          <div>
+            ${settings.business_name ? `<h1 style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">${settings.business_name}</h1>` : ""}
+            ${settings.phone ? `<p style="font-size: 14px;">تلفن: ${settings.phone}</p>` : ""}
+            ${settings.address ? `<p style="font-size: 14px;">آدرس: ${settings.address}</p>` : ""}
+            ${settings.postal_code ? `<p style="font-size: 14px;">کد پستی: ${settings.postal_code}</p>` : ""}
+          </div>
+          <div style="text-align: left;">
+            <h1 style="font-size: 32px; font-weight: bold; color: #2457d6; margin: 0;">فاکتور</h1>
+            <p style="font-size: 18px; margin-top: 5px;">شماره: ${invoiceData.invoice_number}</p>
+            <p style="font-size: 14px; margin-top: 5px;">تاریخ: ${faDate(invoiceData.issued_at)}</p>
+          </div>
+        </div>
+
+        <!-- Customer Info -->
+        <div style="border: 1px solid #000; padding: 15px; margin-bottom: 20px; background: #f9f9f9;">
+          <h3 style="font-size: 14px; margin: 0 0 10px 0; font-weight: bold;">اطلاعات مشتری</h3>
+          <p style="font-size: 14px; margin: 5px 0;">${invoiceData.customer_name}</p>
+          ${invoiceData.customer_phone ? `<p style="font-size: 14px; margin: 5px 0;">تلفن: ${invoiceData.customer_phone}</p>` : ""}
+          ${invoiceData.customer_address ? `<p style="font-size: 14px; margin: 5px 0;">آدرس: ${invoiceData.customer_address}</p>` : ""}
+          ${invoiceData.customer_postal_code ? `<p style="font-size: 14px; margin: 5px 0;">کد پستی: ${invoiceData.customer_postal_code}</p>` : ""}
+        </div>
+
+        <!-- Items Table -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px;">
+          <thead>
+            <tr style="background: #2457d6; color: white;">
+              <th style="border: 1px solid #000; padding: 10px; text-align: right;">کالا / خدمت</th>
+              <th style="border: 1px solid #000; padding: 10px; text-align: center;">تعداد</th>
+              <th style="border: 1px solid #000; padding: 10px; text-align: center;">قیمت واحد</th>
+              <th style="border: 1px solid #000; padding: 10px; text-align: center;">مبلغ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(invoiceData.invoice_items || []).map((item: any) => `
+              <tr>
+                <td style="border: 1px solid #000; padding: 8px;">${item.product_name}</td>
+                <td style="border: 1px solid #000; padding: 8px; text-align: center;">${item.quantity}</td>
+                <td style="border: 1px solid #000; padding: 8px; text-align: center;">${formatToman(item.final_unit_price)}</td>
+                <td style="border: 1px solid #000; padding: 8px; text-align: center;">${formatToman(item.line_total || (item.quantity * item.final_unit_price))}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+
+        <!-- Totals -->
+        <div style="display: flex; justify-content: flex-end;">
+          <div style="width: 300px;">
+            <div style="border-top: 2px solid #000; padding-top: 10px; margin-bottom: 5px; font-size: 14px;">
+              <p>جمع: <span style="float: right;">${formatToman(invoiceData.subtotal)}</span></p>
+              ${invoiceData.discount_amount > 0 ? `<p>تخفیف: <span style="float: right;">-${formatToman(invoiceData.discount_amount)}</span></p>` : ""}
+              ${invoiceData.shipping_amount > 0 ? `<p>هزینه ارسال: <span style="float: right;">${formatToman(invoiceData.shipping_amount)}</span></p>` : ""}
+              <div style="border-top: 2px solid #000; padding-top: 10px; margin-top: 10px; font-size: 16px; font-weight: bold;">
+                <p>مبلغ نهایی: <span style="float: right; color: #2457d6;">${formatToman(invoiceData.total_amount)}</span></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payment Info -->
+        <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px;">
+          <div>
+            <p>وضعیت پرداخت: <strong>${paymentLabel[invoiceData.payment_status] || invoiceData.payment_status}</strong></p>
+            <p>روش پرداخت: <strong>${methodLabel[invoiceData.payment_method] || invoiceData.payment_method}</strong></p>
+          </div>
+          <div style="text-align: left;">
+            <p>پرداخت شده: ${formatToman(invoiceData.paid_amount)}</p>
+            <p>باقی‌مانده: ${formatToman(invoiceData.total_amount - invoiceData.paid_amount)}</p>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        ${settings.footer_text ? `<div style="margin-top: 30px; padding-top: 10px; border-top: 1px solid #000; font-size: 12px; color: #666; text-align: center;">
+          ${settings.footer_text}
+        </div>` : ""}
+      </div>
+    `;
+
+    document.body.appendChild(container);
+
+    // Capture with html2canvas
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      windowWidth: container.scrollWidth,
+      windowHeight: container.scrollHeight,
+    });
+
+    document.body.removeChild(container);
+
+    // Create PDF
+    const pdfDoc = await pdfLib.PDFDocument.create();
+    const page = pdfDoc.addPage([canvas.width / 2, canvas.height / 2]);
+    const png = await pdfDoc.embedPng(await canvas.toDataURL("image/png"));
+    page.drawImage(png, {
+      x: 0,
+      y: 0,
+      width: page.getWidth(),
+      height: page.getHeight(),
+    });
+
+    // Save PDF
+    const pdfBytes = await pdfDoc.save();
+    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `فاکتور-${invoiceData.invoice_number}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Error exporting PDF:", error);
+    alert("خطا در تولید PDF. لطفاً دوباره تلاش کنید.");
+  }
+}
 
 export function FinanceDashboard() {
   const [range, setRange] = useState("month");
@@ -353,12 +492,20 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
               بازگشت
             </Btn>
             {id && (
-              <Btn variant="ghost" onClick={() => window.print()}>
-                <span className="inline-flex gap-1">
-                  <Printer size={15} />
-                  چاپ
-                </span>
-              </Btn>
+              <div className="flex gap-2">
+                <Btn variant="ghost" onClick={() => window.print()}>
+                  <span className="inline-flex gap-1">
+                    <Printer size={15} />
+                    چاپ
+                  </span>
+                </Btn>
+                <Btn variant="ghost" onClick={() => exportInvoicePDF(id)}>
+                  <span className="inline-flex gap-1">
+                    <Download size={15} />
+                    PDF
+                  </span>
+                </Btn>
+              </div>
             )}
             <Btn onClick={() => save.mutate()} disabled={save.isPending}>
               ذخیره فاکتور
@@ -366,7 +513,7 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
           </>
         }
       />
-      <Panel className="p-4 print:border-0 print:shadow-none">
+      <Panel className="p-4 print:border-0 print:shadow-none" id="invoice-printable">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="تاریخ">
             <input
