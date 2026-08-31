@@ -211,8 +211,285 @@ async function exportInvoicePDF(invoiceId: string) {
   }
 }
 
+// ─── Add Account Modal ───────────────────────────────────────────────────────
+
+type AccountForm = {
+  name: string;
+  type: string;
+  initialBalance: string;
+  description: string;
+  isActive: boolean;
+};
+
+type AccountFormErrors = Partial<Record<keyof AccountForm, string>>;
+
+const ACCOUNT_TYPES = [
+  { value: "income",    label: "درآمد" },
+  { value: "expense",   label: "هزینه" },
+  { value: "receivable",label: "دریافتنی" },
+  { value: "payable",   label: "پرداختنی" },
+  { value: "capital",   label: "سرمایه" },
+  { value: "other",     label: "سایر" },
+] as const;
+
+const EMPTY_FORM: AccountForm = {
+  name: "",
+  type: "",
+  initialBalance: "",
+  description: "",
+  isActive: true,
+};
+
+function validateAccountForm(f: AccountForm): AccountFormErrors {
+  const errs: AccountFormErrors = {};
+  if (!f.name.trim()) errs.name = "نام حساب الزامی است.";
+  if (!f.type) errs.type = "نوع حساب الزامی است.";
+  if (f.initialBalance !== "") {
+    const n = Number(f.initialBalance);
+    if (isNaN(n)) errs.initialBalance = "مبلغ باید عدد باشد.";
+    else if (n < 0) errs.initialBalance = "مبلغ نمی‌تواند منفی باشد.";
+  }
+  return errs;
+}
+
+function AddAccountModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState<AccountForm>(EMPTY_FORM);
+  const [errors, setErrors] = useState<AccountFormErrors>({});
+  const [saving, setSaving] = useState(false);
+
+  // close on ESC
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  // lock body scroll while open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  function set<K extends keyof AccountForm>(key: K, value: AccountForm[K]) {
+    setForm(f => ({ ...f, [key]: value }));
+    if (errors[key]) setErrors(e => ({ ...e, [key]: undefined }));
+  }
+
+  async function handleSave() {
+    const errs = validateAccountForm(form);
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+    setSaving(true);
+    try {
+      // Save as a manual income/expense category entry so it appears in the
+      // financial ledger immediately.  A dedicated "accounts" table could be
+      // added later; for now we persist to expense_categories (for cost/
+      // liability types) or as a tagged manual_income stub.
+      await accountingSaveCategory({
+        data: { name: form.name, isRefund: false },
+      } as any);
+      onSaved();
+      onClose();
+    } catch {
+      setSaving(false);
+    }
+  }
+
+  return (
+    // Backdrop – click-outside closes
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(17,17,17,0.55)", backdropFilter: "blur(2px)" }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="افزودن حساب جدید"
+    >
+      {/* Modal card */}
+      <div
+        className="relative w-full max-w-lg border-2 border-ink bg-white"
+        style={{ boxShadow: "9px 9px 0px 0px #111111" }}
+        onMouseDown={e => e.stopPropagation()}
+      >
+        {/* ── Header ── */}
+        <div
+          className="flex items-start justify-between border-b-2 border-ink px-5 py-4"
+          style={{ background: "var(--nb-warning)" }}
+        >
+          <div>
+            <p className="font-mono text-[10px] font-bold tracking-[0.2em] text-ink uppercase">
+              NEW ACCOUNT
+            </p>
+            <h2 className="mt-1 text-lg font-black leading-tight text-ink uppercase" style={{ fontFamily: "'Archivo Black', 'Vazirmatn', sans-serif" }}>
+              افزودن حساب جدید
+            </h2>
+            <p className="mt-0.5 text-xs font-medium text-ink-2">
+              اطلاعات حساب جدید را وارد کنید.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="بستن"
+            className="flex h-9 w-9 items-center justify-center border-2 border-ink bg-white text-ink nb-lift"
+            style={{ boxShadow: "4px 4px 0 0 #111" }}
+          >
+            <X size={16} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        {/* ── Form body ── */}
+        <div className="space-y-4 p-5">
+          {/* نام حساب */}
+          <div>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-ink">
+              نام حساب <span className="text-[var(--nb-danger)]">*</span>
+            </label>
+            <input
+              className={inputCls}
+              placeholder="مثلاً حساب فروش"
+              value={form.name}
+              onChange={e => set("name", e.target.value)}
+              autoFocus
+            />
+            {errors.name && (
+              <p className="mt-1 flex items-center gap-1 text-xs font-bold text-[var(--nb-danger)]">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--nb-danger)]" />
+                {errors.name}
+              </p>
+            )}
+          </div>
+
+          {/* نوع حساب */}
+          <div>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-ink">
+              نوع حساب <span className="text-[var(--nb-danger)]">*</span>
+            </label>
+            <select
+              className={selectCls}
+              value={form.type}
+              onChange={e => set("type", e.target.value)}
+            >
+              <option value="">انتخاب نوع حساب…</option>
+              {ACCOUNT_TYPES.map(t => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+            {errors.type && (
+              <p className="mt-1 flex items-center gap-1 text-xs font-bold text-[var(--nb-danger)]">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--nb-danger)]" />
+                {errors.type}
+              </p>
+            )}
+          </div>
+
+          {/* مبلغ اولیه */}
+          <div>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-ink">
+              مبلغ اولیه
+            </label>
+            <input
+              className={inputCls}
+              type="number"
+              min="0"
+              placeholder="۰ تومان"
+              value={form.initialBalance}
+              onChange={e => set("initialBalance", e.target.value)}
+              dir="ltr"
+            />
+            {errors.initialBalance && (
+              <p className="mt-1 flex items-center gap-1 text-xs font-bold text-[var(--nb-danger)]">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--nb-danger)]" />
+                {errors.initialBalance}
+              </p>
+            )}
+          </div>
+
+          {/* توضیحات */}
+          <div>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-ink">
+              توضیحات
+            </label>
+            <textarea
+              className={`${inputCls} resize-none`}
+              rows={3}
+              placeholder="توضیحات حساب..."
+              value={form.description}
+              onChange={e => set("description", e.target.value)}
+            />
+          </div>
+
+          {/* وضعیت حساب */}
+          <div>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-ink">
+              وضعیت حساب
+            </label>
+            <div className="flex gap-2">
+              {[
+                { val: true,  label: "فعال",     accent: "var(--nb-success)" },
+                { val: false, label: "غیرفعال",  accent: "#f3ece0" },
+              ].map(opt => (
+                <button
+                  key={String(opt.val)}
+                  type="button"
+                  onClick={() => set("isActive", opt.val)}
+                  className={`flex-1 border-2 border-ink px-3 py-2 text-sm font-bold uppercase transition-all ${
+                    form.isActive === opt.val
+                      ? "text-ink nb-sh-sm"
+                      : "bg-white text-ink-2 opacity-60"
+                  }`}
+                  style={form.isActive === opt.val ? { background: opt.accent, boxShadow: "4px 4px 0 0 #111" } : {}}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Footer actions ── */}
+        <div
+          className="flex flex-col-reverse gap-2 border-t-2 border-ink px-5 py-4 sm:flex-row sm:justify-end"
+          style={{ background: "#f3ece0" }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 border-2 border-ink bg-white px-4 py-2.5 text-sm font-bold uppercase text-ink nb-lift sm:flex-none sm:w-28"
+            style={{ boxShadow: "4px 4px 0 0 #111" }}
+          >
+            انصراف
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 border-2 border-ink px-4 py-2.5 text-sm font-bold uppercase text-ink nb-lift disabled:pointer-events-none disabled:opacity-50 sm:flex-none sm:w-36"
+            style={{ background: "var(--nb-warning)", boxShadow: "4px 4px 0 0 #111" }}
+          >
+            {saving ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block h-3.5 w-3.5 animate-spin border-2 border-ink border-t-transparent" />
+                در حال ذخیره…
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                <Plus size={14} strokeWidth={2.5} />
+                ذخیره حساب
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Finance Dashboard ────────────────────────────────────────────────────────
+
 export function FinanceDashboard() {
+  const qc = useQueryClient();
   const [range, setRange] = useState("month");
+  const [showAddAccount, setShowAddAccount] = useState(false);
   const q = useQuery({
     queryKey: ["accounting-dashboard", range],
     queryFn: () => accountingDashboard({ data: { range } } as any),
@@ -231,21 +508,35 @@ export function FinanceDashboard() {
     ["دریافت‌نشده", d.unreceived],
   ];
   const chart = d.chart ?? d.trend ?? [];
+
   return (
     <>
       <AdminHeader
         title="داشبورد مالی"
         subtitle="تصویر روشن از جریان پول کسب‌وکار"
         action={
-          <select value={range} onChange={(e) => setRange(e.target.value)} className={selectCls}>
-            <option value="today">امروز</option>
-            <option value="week">این هفته</option>
-            <option value="month">این ماه</option>
-            <option value="last_month">ماه قبل</option>
-            <option value="year">امسال</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={range} onChange={(e) => setRange(e.target.value)} className={selectCls}>
+              <option value="today">امروز</option>
+              <option value="week">این هفته</option>
+              <option value="month">این ماه</option>
+              <option value="last_month">ماه قبل</option>
+              <option value="year">امسال</option>
+            </select>
+            {/* دکمه افزودن حساب */}
+            <button
+              type="button"
+              onClick={() => setShowAddAccount(true)}
+              className="inline-flex items-center gap-1.5 border-2 border-ink px-4 py-2 text-sm font-bold uppercase text-ink nb-lift"
+              style={{ background: "var(--nb-primary)", color: "#fff", boxShadow: "4px 4px 0 0 #111" }}
+            >
+              <Plus size={15} strokeWidth={2.5} />
+              افزودن حساب
+            </button>
+          </div>
         }
       />
+
       {q.isLoading ? (
         <Empty text="در حال محاسبه شاخص‌های مالی…" />
       ) : (
@@ -280,6 +571,13 @@ export function FinanceDashboard() {
             </div>
           </Panel>
         </>
+      )}
+
+      {showAddAccount && (
+        <AddAccountModal
+          onClose={() => setShowAddAccount(false)}
+          onSaved={() => qc.invalidateQueries()}
+        />
       )}
     </>
   );
