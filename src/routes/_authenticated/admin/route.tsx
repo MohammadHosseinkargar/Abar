@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, Link, useRouterState } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { LayoutGrid, Package, Layers, ShoppingBag, Users, Ticket, Star, Settings, ArrowRight, Activity } from "lucide-react";
+import { LayoutGrid, Package, Layers, ShoppingBag, Users, Ticket, Star, Settings, ArrowRight, Activity, WalletCards } from "lucide-react";
 import { getAdminAccess, claimFirstAdmin } from "@/lib/admin.functions";
 import { Btn, Panel } from "@/components/admin/kit";
 
@@ -18,6 +18,7 @@ const nav: { to: string; label: string; icon: typeof LayoutGrid; exact?: boolean
   { to: "/admin/reviews", label: "نظرات", icon: Star },
   { to: "/admin/settings", label: "تنظیمات", icon: Settings },
   { to: "/admin/torob", label: "ترب", icon: Activity },
+  { to: "/admin/accounting", label: "حسابداری", icon: WalletCards },
 ];
 
 function AdminLayout() {

@@ -131,13 +131,14 @@ export const adminListProducts = createServerFn({ method: "GET" })
     const { data, error } = await db
       .from("products")
       .select(
-        "id, slug, name, category_slug, price, compare_at, stock, featured, is_active, material, color, size_mm, description, image_url, model_url, image_urls, model_urls, available_colors, available_sizes, is_bookmark",
+        "id, slug, name, category_slug, price, cost_price, compare_at, stock, featured, is_active, material, color, size_mm, description, image_url, model_url, image_urls, model_urls, available_colors, available_sizes, is_bookmark",
       )
       .order("created_at", { ascending: false });
     if (error) throw error;
     return (data ?? []).map((p) => ({
       ...p,
       price: Number(p.price),
+      cost_price: Number((p as any).cost_price ?? 0),
       compare_at: p.compare_at ? Number(p.compare_at) : null,
     }));
   });
@@ -153,6 +154,7 @@ const productSchema = z.object({
   name: z.string().trim().min(2).max(120),
   categorySlug: z.string().trim().min(1).max(60),
   price: z.number().int().min(0).max(1_000_000_000),
+  costPrice: z.number().int().min(0).max(1_000_000_000).optional(),
   compareAt: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
   stock: z.number().int().min(0).max(100000),
   material: z.string().trim().max(60).optional().nullable(),
@@ -183,6 +185,7 @@ export const adminSaveProduct = createServerFn({ method: "POST" })
       name: data.name,
       category_slug: data.categorySlug,
       price: data.price,
+      cost_price: data.costPrice ?? 0,
       compare_at: data.compareAt ?? null,
       stock: data.stock,
       material: data.material ?? null,

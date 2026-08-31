@@ -35,6 +35,13 @@ import { Route as AuthenticatedOrdersIdRouteImport } from './routes/_authenticat
 import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
 import { Route as ApiTorobHealthRouteImport } from './routes/api/torob/health'
 import { Route as ApiTorobProductsRouteImport } from './routes/api/torob/products'
+import { Route as AuthenticatedAdminAccountingIndexRouteImport } from './routes/_authenticated/admin/accounting.index'
+import { Route as AuthenticatedAdminAccountingExpensesRouteImport } from './routes/_authenticated/admin/accounting.expenses'
+import { Route as AuthenticatedAdminAccountingIncomesRouteImport } from './routes/_authenticated/admin/accounting.incomes'
+import { Route as AuthenticatedAdminAccountingInvoicesRouteImport } from './routes/_authenticated/admin/accounting.invoices'
+import { Route as AuthenticatedAdminAccountingReportsRouteImport } from './routes/_authenticated/admin/accounting.reports'
+import { Route as AuthenticatedAdminAccountingSettingsRouteImport } from './routes/_authenticated/admin/accounting.settings'
+import { Route as AuthenticatedAdminAccountingTransactionsRouteImport } from './routes/_authenticated/admin/accounting.transactions'
 import { Route as ApiPaymentZibalCallbackRouteImport } from './routes/api/payment/zibal/callback'
 import { Route as ApiPublicImgSplatRouteImport } from './routes/api/public/img.$'
 import { Route as ApiPublicModelSplatRouteImport } from './routes/api/public/model.$'
@@ -177,6 +184,48 @@ const ApiTorobProductsRoute = ApiTorobProductsRouteImport.update({
   path: '/api/torob/products',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminAccountingIndexRoute =
+  AuthenticatedAdminAccountingIndexRouteImport.update({
+    id: '/accounting/',
+    path: '/accounting/',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminAccountingExpensesRoute =
+  AuthenticatedAdminAccountingExpensesRouteImport.update({
+    id: '/accounting/expenses',
+    path: '/accounting/expenses',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminAccountingIncomesRoute =
+  AuthenticatedAdminAccountingIncomesRouteImport.update({
+    id: '/accounting/incomes',
+    path: '/accounting/incomes',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminAccountingInvoicesRoute =
+  AuthenticatedAdminAccountingInvoicesRouteImport.update({
+    id: '/accounting/invoices',
+    path: '/accounting/invoices',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminAccountingReportsRoute =
+  AuthenticatedAdminAccountingReportsRouteImport.update({
+    id: '/accounting/reports',
+    path: '/accounting/reports',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminAccountingSettingsRoute =
+  AuthenticatedAdminAccountingSettingsRouteImport.update({
+    id: '/accounting/settings',
+    path: '/accounting/settings',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminAccountingTransactionsRoute =
+  AuthenticatedAdminAccountingTransactionsRouteImport.update({
+    id: '/accounting/transactions',
+    path: '/accounting/transactions',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const ApiPaymentZibalCallbackRoute = ApiPaymentZibalCallbackRouteImport.update({
   id: '/api/payment/zibal/callback',
   path: '/api/payment/zibal/callback',
@@ -229,11 +278,18 @@ export interface FileRoutesByFullPath {
   '/api/torob/products': typeof ApiTorobProductsRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/orders/': typeof AuthenticatedOrdersIndexRoute
+  '/admin/accounting/expenses': typeof AuthenticatedAdminAccountingExpensesRoute
+  '/admin/accounting/incomes': typeof AuthenticatedAdminAccountingIncomesRoute
+  '/admin/accounting/invoices': typeof AuthenticatedAdminAccountingInvoicesRoute
+  '/admin/accounting/reports': typeof AuthenticatedAdminAccountingReportsRoute
+  '/admin/accounting/settings': typeof AuthenticatedAdminAccountingSettingsRoute
+  '/admin/accounting/transactions': typeof AuthenticatedAdminAccountingTransactionsRoute
   '/api/payment/zibal/callback': typeof ApiPaymentZibalCallbackRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/model/$': typeof ApiPublicModelSplatRoute
   '/api/torob/v1/orders': typeof ApiTorobV1OrdersRoute
   '/api/torob/webhooks/process': typeof ApiTorobWebhooksProcessRoute
+  '/admin/accounting/': typeof AuthenticatedAdminAccountingIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -260,11 +316,18 @@ export interface FileRoutesByTo {
   '/api/torob/products': typeof ApiTorobProductsRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/orders': typeof AuthenticatedOrdersIndexRoute
+  '/admin/accounting/expenses': typeof AuthenticatedAdminAccountingExpensesRoute
+  '/admin/accounting/incomes': typeof AuthenticatedAdminAccountingIncomesRoute
+  '/admin/accounting/invoices': typeof AuthenticatedAdminAccountingInvoicesRoute
+  '/admin/accounting/reports': typeof AuthenticatedAdminAccountingReportsRoute
+  '/admin/accounting/settings': typeof AuthenticatedAdminAccountingSettingsRoute
+  '/admin/accounting/transactions': typeof AuthenticatedAdminAccountingTransactionsRoute
   '/api/payment/zibal/callback': typeof ApiPaymentZibalCallbackRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/model/$': typeof ApiPublicModelSplatRoute
   '/api/torob/v1/orders': typeof ApiTorobV1OrdersRoute
   '/api/torob/webhooks/process': typeof ApiTorobWebhooksProcessRoute
+  '/admin/accounting': typeof AuthenticatedAdminAccountingIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -294,11 +357,18 @@ export interface FileRoutesById {
   '/api/torob/products': typeof ApiTorobProductsRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/orders/': typeof AuthenticatedOrdersIndexRoute
+  '/_authenticated/admin/accounting/expenses': typeof AuthenticatedAdminAccountingExpensesRoute
+  '/_authenticated/admin/accounting/incomes': typeof AuthenticatedAdminAccountingIncomesRoute
+  '/_authenticated/admin/accounting/invoices': typeof AuthenticatedAdminAccountingInvoicesRoute
+  '/_authenticated/admin/accounting/reports': typeof AuthenticatedAdminAccountingReportsRoute
+  '/_authenticated/admin/accounting/settings': typeof AuthenticatedAdminAccountingSettingsRoute
+  '/_authenticated/admin/accounting/transactions': typeof AuthenticatedAdminAccountingTransactionsRoute
   '/api/payment/zibal/callback': typeof ApiPaymentZibalCallbackRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/model/$': typeof ApiPublicModelSplatRoute
   '/api/torob/v1/orders': typeof ApiTorobV1OrdersRoute
   '/api/torob/webhooks/process': typeof ApiTorobWebhooksProcessRoute
+  '/_authenticated/admin/accounting/': typeof AuthenticatedAdminAccountingIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -328,11 +398,18 @@ export interface FileRouteTypes {
     | '/api/torob/products'
     | '/admin/'
     | '/orders/'
+    | '/admin/accounting/expenses'
+    | '/admin/accounting/incomes'
+    | '/admin/accounting/invoices'
+    | '/admin/accounting/reports'
+    | '/admin/accounting/settings'
+    | '/admin/accounting/transactions'
     | '/api/payment/zibal/callback'
     | '/api/public/img/$'
     | '/api/public/model/$'
     | '/api/torob/v1/orders'
     | '/api/torob/webhooks/process'
+    | '/admin/accounting/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -359,11 +436,18 @@ export interface FileRouteTypes {
     | '/api/torob/products'
     | '/admin'
     | '/orders'
+    | '/admin/accounting/expenses'
+    | '/admin/accounting/incomes'
+    | '/admin/accounting/invoices'
+    | '/admin/accounting/reports'
+    | '/admin/accounting/settings'
+    | '/admin/accounting/transactions'
     | '/api/payment/zibal/callback'
     | '/api/public/img/$'
     | '/api/public/model/$'
     | '/api/torob/v1/orders'
     | '/api/torob/webhooks/process'
+    | '/admin/accounting'
   id:
     | '__root__'
     | '/'
@@ -392,11 +476,18 @@ export interface FileRouteTypes {
     | '/api/torob/products'
     | '/_authenticated/admin/'
     | '/_authenticated/orders/'
+    | '/_authenticated/admin/accounting/expenses'
+    | '/_authenticated/admin/accounting/incomes'
+    | '/_authenticated/admin/accounting/invoices'
+    | '/_authenticated/admin/accounting/reports'
+    | '/_authenticated/admin/accounting/settings'
+    | '/_authenticated/admin/accounting/transactions'
     | '/api/payment/zibal/callback'
     | '/api/public/img/$'
     | '/api/public/model/$'
     | '/api/torob/v1/orders'
     | '/api/torob/webhooks/process'
+    | '/_authenticated/admin/accounting/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -604,6 +695,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTorobProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin/accounting/': {
+      id: '/_authenticated/admin/accounting/'
+      path: '/accounting'
+      fullPath: '/admin/accounting/'
+      preLoaderRoute: typeof AuthenticatedAdminAccountingIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/accounting/expenses': {
+      id: '/_authenticated/admin/accounting/expenses'
+      path: '/accounting/expenses'
+      fullPath: '/admin/accounting/expenses'
+      preLoaderRoute: typeof AuthenticatedAdminAccountingExpensesRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/accounting/incomes': {
+      id: '/_authenticated/admin/accounting/incomes'
+      path: '/accounting/incomes'
+      fullPath: '/admin/accounting/incomes'
+      preLoaderRoute: typeof AuthenticatedAdminAccountingIncomesRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/accounting/invoices': {
+      id: '/_authenticated/admin/accounting/invoices'
+      path: '/accounting/invoices'
+      fullPath: '/admin/accounting/invoices'
+      preLoaderRoute: typeof AuthenticatedAdminAccountingInvoicesRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/accounting/reports': {
+      id: '/_authenticated/admin/accounting/reports'
+      path: '/accounting/reports'
+      fullPath: '/admin/accounting/reports'
+      preLoaderRoute: typeof AuthenticatedAdminAccountingReportsRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/accounting/settings': {
+      id: '/_authenticated/admin/accounting/settings'
+      path: '/accounting/settings'
+      fullPath: '/admin/accounting/settings'
+      preLoaderRoute: typeof AuthenticatedAdminAccountingSettingsRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/accounting/transactions': {
+      id: '/_authenticated/admin/accounting/transactions'
+      path: '/accounting/transactions'
+      fullPath: '/admin/accounting/transactions'
+      preLoaderRoute: typeof AuthenticatedAdminAccountingTransactionsRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/api/payment/zibal/callback': {
       id: '/api/payment/zibal/callback'
       path: '/api/payment/zibal/callback'
@@ -652,6 +792,13 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminTorobRoute: typeof AuthenticatedAdminTorobRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedAdminAccountingExpensesRoute: typeof AuthenticatedAdminAccountingExpensesRoute
+  AuthenticatedAdminAccountingIncomesRoute: typeof AuthenticatedAdminAccountingIncomesRoute
+  AuthenticatedAdminAccountingInvoicesRoute: typeof AuthenticatedAdminAccountingInvoicesRoute
+  AuthenticatedAdminAccountingReportsRoute: typeof AuthenticatedAdminAccountingReportsRoute
+  AuthenticatedAdminAccountingSettingsRoute: typeof AuthenticatedAdminAccountingSettingsRoute
+  AuthenticatedAdminAccountingTransactionsRoute: typeof AuthenticatedAdminAccountingTransactionsRoute
+  AuthenticatedAdminAccountingIndexRoute: typeof AuthenticatedAdminAccountingIndexRoute
 }
 
 const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
@@ -665,6 +812,20 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminTorobRoute: AuthenticatedAdminTorobRoute,
     AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+    AuthenticatedAdminAccountingExpensesRoute:
+      AuthenticatedAdminAccountingExpensesRoute,
+    AuthenticatedAdminAccountingIncomesRoute:
+      AuthenticatedAdminAccountingIncomesRoute,
+    AuthenticatedAdminAccountingInvoicesRoute:
+      AuthenticatedAdminAccountingInvoicesRoute,
+    AuthenticatedAdminAccountingReportsRoute:
+      AuthenticatedAdminAccountingReportsRoute,
+    AuthenticatedAdminAccountingSettingsRoute:
+      AuthenticatedAdminAccountingSettingsRoute,
+    AuthenticatedAdminAccountingTransactionsRoute:
+      AuthenticatedAdminAccountingTransactionsRoute,
+    AuthenticatedAdminAccountingIndexRoute:
+      AuthenticatedAdminAccountingIndexRoute,
   }
 
 const AuthenticatedAdminRouteRouteWithChildren =
