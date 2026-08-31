@@ -48,6 +48,14 @@ import {
   selectCls,
   num,
 } from "@/components/admin/kit";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const money = (value: unknown) => formatToman(Number(value ?? 0));
 const moneyInt = (value: unknown) => Number(value ?? 0);
@@ -704,12 +712,14 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
   const saveFn = isIncome ? accountingSaveIncome : accountingSaveExpense;
   const deleteFn = isIncome ? accountingDeleteIncome : accountingDeleteExpense;
   const q = useQuery({ queryKey: ["accounting", kind], queryFn: () => fn() });
+  const [open, setOpen] = useState(false);
   const [form, setForm] = useState<any | null>(null);
   const save = useMutation({
     mutationFn: () =>
       saveFn({
         data: isIncome
           ? {
+              id: form?.id ?? null,
               title: form.title,
               category: form.category,
               amount: form.amount,
@@ -718,6 +728,7 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
               notes: form.notes,
             }
           : {
+              id: form?.id ?? null,
               title: form.title,
               totalAmount: form.amount,
               occurredAt: new Date(`${form.date}T00:00:00.000Z`).toISOString(),
@@ -727,6 +738,7 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
       } as any),
     onSuccess: () => {
       setForm(null);
+      setOpen(false);
       qc.invalidateQueries();
     },
   });
@@ -735,6 +747,7 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
     onSuccess: () => qc.invalidateQueries(),
   });
   const blank = {
+    id: null,
     title: "",
     amount: 0,
     date: new Date().toISOString().slice(0, 10),
@@ -742,6 +755,25 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
     category: "other",
     notes: "",
   };
+
+  const openNew = () => {
+    setForm({ ...blank });
+    setOpen(true);
+  };
+
+  const openEdit = (item: any) => {
+    setForm({
+      id: item.id,
+      title: item.title ?? "",
+      amount: Number(item.amount ?? item.totalAmount ?? 0),
+      date: (item.occurred_at ?? item.occurredAt ?? new Date().toISOString()).slice(0, 10),
+      payment_method: item.payment_method ?? "cash",
+      category: item.category ?? "other",
+      notes: item.notes ?? "",
+    });
+    setOpen(true);
+  };
+
   return (
     <>
       <AdminHeader
@@ -752,68 +784,110 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
             : "هزینه‌های واقعی روزمره کسب‌وکار"
         }
         action={
-          <Btn onClick={() => setForm(blank)}>
+          <Btn onClick={openNew}>
             <Plus size={15} className="inline" /> ثبت {isIncome ? "درآمد" : "هزینه"}
           </Btn>
         }
       />
-      {form && (
-        <Panel className="mb-5 p-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="عنوان">
-              <input
-                className={inputCls}
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-            </Field>
-            <Field label="مبلغ">
-              <input
-                type="number"
-                className={inputCls}
-                value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
-              />
-            </Field>
-            <Field label="تاریخ">
-              <input
-                type="date"
-                className={inputCls}
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-              />
-            </Field>
-            <Field label="روش پرداخت">
-              <select
-                className={selectCls}
-                value={form.payment_method}
-                onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
-              >
-                {Object.entries(methodLabel).map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <div className="sm:col-span-2">
-              <Field label="توضیحات">
+
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setForm(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl rounded-none border-2 border-ink bg-card p-0 shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
+          <div className="border-b-2 border-ink bg-[var(--nb-accent)] px-5 py-4">
+            <DialogHeader className="space-y-1 text-right">
+              <DialogTitle className="text-xl font-black text-ink">
+                {form?.id ? (isIncome ? "ویرایش درآمد" : "ویرایش هزینه") : isIncome ? "افزودن درآمد" : "افزودن هزینه"}
+              </DialogTitle>
+              <DialogDescription className="text-right text-sm text-ink/70">
+                {isIncome ? "اطلاعات درآمد را وارد کنید." : "اطلاعات هزینه را وارد کنید."}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          {form && (
+            <div className="grid gap-4 p-5 sm:grid-cols-2">
+              <Field label="عنوان">
                 <input
                   className={inputCls}
-                  value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
                 />
               </Field>
+              <Field label="مبلغ">
+                <input
+                  type="number"
+                  className={inputCls}
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
+                />
+              </Field>
+              <Field label="تاریخ">
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                />
+              </Field>
+              <Field label="روش پرداخت">
+                <select
+                  className={selectCls}
+                  value={form.payment_method}
+                  onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
+                >
+                  {Object.entries(methodLabel).map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {!isIncome && (
+                <Field label="دسته‌بندی">
+                  <select
+                    className={selectCls}
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  >
+                    <option value="other">سایر</option>
+                    <option value="marketing">بازاریابی</option>
+                    <option value="operations">عملیات</option>
+                    <option value="salary">حقوق</option>
+                    <option value="inventory">موجودی</option>
+                  </select>
+                </Field>
+              )}
+              <div className={isIncome ? "sm:col-span-2" : "sm:col-span-1"}>
+                <Field label="توضیحات">
+                  <input
+                    className={inputCls}
+                    value={form.notes}
+                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  />
+                </Field>
+              </div>
             </div>
-          </div>
-          <div className="mt-4 flex justify-end gap-2">
-            <Btn variant="ghost" onClick={() => setForm(null)}>
+          )}
+
+          <DialogFooter className="flex justify-end gap-2 border-t-2 border-ink bg-white px-5 py-4">
+            <Btn variant="ghost" onClick={() => setOpen(false)}>
               انصراف
             </Btn>
-            <Btn onClick={() => save.mutate()}>ذخیره</Btn>
-          </div>
-        </Panel>
-      )}
+            <Btn
+              onClick={() => save.mutate()}
+              disabled={!form || !form.title || !form.amount || save.isPending}
+            >
+              ذخیره
+            </Btn>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Panel className="overflow-hidden">
         {q.isLoading ? (
           <Empty text="در حال بارگذاری…" />
@@ -826,9 +900,10 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
                 <Tag tone={isIncome ? "ok" : "warn"}>{isIncome ? "درآمد" : "هزینه"}</Tag>
                 <span className="font-bold">{x.title}</span>
                 <span className="text-xs text-ink-2">{date(x.occurred_at)}</span>
-                <span className="ms-auto font-mono">
-                  {money(isIncome ? x.amount : x.totalAmount)}
-                </span>
+                <span className="ms-auto font-mono">{money(isIncome ? x.amount : x.totalAmount)}</span>
+                <IconBtn label="ویرایش" onClick={() => openEdit(x)}>
+                  <Pencil size={15} />
+                </IconBtn>
                 <IconBtn
                   label="حذف"
                   tone="danger"
@@ -1030,32 +1105,88 @@ export function Categories() {
     queryKey: ["accounting-categories"],
     queryFn: () => accountingListCategories(),
   });
-  const [name, setName] = useState("");
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<{ id?: string | null; name: string }>({ name: "" });
   const save = useMutation({
-    mutationFn: () => accountingSaveCategory({ data: { name } } as any),
+    mutationFn: () =>
+      accountingSaveCategory({
+        data: { id: draft.id ?? undefined, name: draft.name },
+      } as any),
     onSuccess: () => {
-      setName("");
+      setDraft({ name: "" });
+      setOpen(false);
       qc.invalidateQueries();
     },
   });
+
+  const openNew = () => {
+    setDraft({ name: "" });
+    setOpen(true);
+  };
+
+  const openEdit = (c: any) => {
+    setDraft({ id: c.id, name: c.name ?? "" });
+    setOpen(true);
+  };
+
   return (
     <>
-      <AdminHeader title="دسته‌بندی هزینه‌ها" subtitle="مدیریت دسته‌بندی‌های گزارش هزینه" />
+      <AdminHeader
+        title="دسته‌بندی هزینه‌ها"
+        subtitle="مدیریت دسته‌بندی‌های گزارش هزینه"
+        action={<Btn onClick={openNew}>افزودن دسته‌بندی</Btn>}
+      />
+
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setDraft({ name: "" });
+        }}
+      >
+        <DialogContent className="max-w-md rounded-none border-2 border-ink bg-card p-0 shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
+          <div className="border-b-2 border-ink bg-[var(--nb-accent)] px-5 py-4">
+            <DialogHeader className="space-y-1 text-right">
+              <DialogTitle className="text-xl font-black text-ink">
+                {draft.id ? "ویرایش دسته‌بندی" : "افزودن دسته‌بندی"}
+              </DialogTitle>
+              <DialogDescription className="text-right text-sm text-ink/70">
+                نام دسته‌بندی را وارد کنید.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="p-5">
+            <Field label="نام دسته">
+              <input
+                className={inputCls}
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                placeholder="نام دسته جدید"
+              />
+            </Field>
+          </div>
+
+          <DialogFooter className="flex justify-end gap-2 border-t-2 border-ink bg-white px-5 py-4">
+            <Btn variant="ghost" onClick={() => setOpen(false)}>
+              انصراف
+            </Btn>
+            <Btn onClick={() => save.mutate()} disabled={!draft.name || save.isPending}>
+              ذخیره
+            </Btn>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Panel className="p-4">
-        <div className="flex gap-2">
-          <input
-            className={inputCls}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="نام دسته جدید"
-          />
-          <Btn onClick={() => save.mutate()} disabled={!name}>
-            افزودن
-          </Btn>
-        </div>
         <div className="mt-5 flex flex-wrap gap-2">
           {(q.data ?? []).map((c: any) => (
-            <Tag key={c.id}>{c.name}</Tag>
+            <div key={c.id} className="flex items-center gap-2">
+              <Tag>{c.name}</Tag>
+              <IconBtn label="ویرایش دسته‌بندی" onClick={() => openEdit(c)}>
+                <Pencil size={14} />
+              </IconBtn>
+            </div>
           ))}
         </div>
       </Panel>
