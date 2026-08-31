@@ -51,6 +51,9 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 export const inputCls =
   "w-full border-2 border-ink bg-white px-3 py-2 text-sm font-medium text-ink outline-none placeholder:text-ink-3";
 
+export const selectCls =
+  "w-full border-2 border-ink bg-white px-3 py-2 text-sm font-medium text-ink outline-none cursor-pointer";
+
 export function Btn({
   children,
   onClick,
