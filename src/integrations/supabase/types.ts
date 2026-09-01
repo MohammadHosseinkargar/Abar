@@ -294,6 +294,7 @@ export type Database = {
           category_slug: string
           color: string | null
           compare_at: number | null
+          cost_price: number
           created_at: string
           description: string | null
           featured: boolean
@@ -325,6 +326,7 @@ export type Database = {
           category_slug: string
           color?: string | null
           compare_at?: number | null
+          cost_price?: number
           created_at?: string
           description?: string | null
           featured?: boolean
@@ -356,6 +358,7 @@ export type Database = {
           category_slug?: string
           color?: string | null
           compare_at?: number | null
+          cost_price?: number
           created_at?: string
           description?: string | null
           featured?: boolean

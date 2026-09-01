@@ -1,9 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as pdfLib from "pdf-lib";
 import html2canvas from "html2canvas";
-import { BarChart3, Eye, FilePlus2, Pencil, Plus, Printer, Trash2, X, Download } from "lucide-react";
+import {
+  BarChart3,
+  Eye,
+  FilePlus2,
+  Pencil,
+  Plus,
+  Printer,
+  Trash2,
+  X,
+  Download,
+  LayoutGrid,
+  ReceiptText,
+  TrendingUp,
+  TrendingDown,
+  ListTree,
+  PieChart,
+  SlidersHorizontal,
+} from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -56,6 +73,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ImageUpload } from "@/components/admin/image-upload";
 
 const money = (value: unknown) => formatToman(Number(value ?? 0));
 const moneyInt = (value: unknown) => Number(value ?? 0);
@@ -69,16 +87,54 @@ const paymentLabel: Record<string, string> = {
 const methodLabel: Record<string, string> = {
   cash: "نقدی",
   pos: "کارتخوان",
-  card: "کارت به کارت",
+  card_transfer: "کارت به کارت",
   gateway: "درگاه",
   other: "سایر",
 };
+
+// ─── Accounting section sub-nav ──────────────────────────────────────────────
+// The 7 accounting pages are flat sibling routes (no shared layout route), so
+// each page renders this nav itself rather than introducing a new pathless
+// layout route into the generated route tree.
+const accountingNav: { to: string; label: string; icon: typeof LayoutGrid; exact?: boolean }[] = [
+  { to: "/admin/accounting", label: "داشبورد", icon: LayoutGrid, exact: true },
+  { to: "/admin/accounting/invoices", label: "فاکتورها", icon: ReceiptText },
+  { to: "/admin/accounting/incomes", label: "درآمدها", icon: TrendingUp },
+  { to: "/admin/accounting/expenses", label: "هزینه‌ها", icon: TrendingDown },
+  { to: "/admin/accounting/transactions", label: "تراکنش‌ها", icon: ListTree },
+  { to: "/admin/accounting/reports", label: "گزارش‌ها", icon: PieChart },
+  { to: "/admin/accounting/settings", label: "تنظیمات", icon: SlidersHorizontal },
+];
+
+export function AccountingNav() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  return (
+    <nav className="-mx-1 mb-6 flex gap-2 overflow-x-auto px-1 pb-1">
+      {accountingNav.map((item) => {
+        const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
+        return (
+          <Link
+            key={item.to}
+            to={item.to}
+            className={`flex shrink-0 items-center gap-1.5 border-2 border-ink px-3 py-1.5 text-xs font-bold uppercase nb-sh-sm nb-lift ${
+              active ? "bg-[var(--nb-accent)] text-ink" : "bg-white text-ink"
+            }`}
+          >
+            <item.icon size={14} strokeWidth={2.5} />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 // Export Invoice as PDF
 async function exportInvoicePDF(invoiceId: string) {
   try {
     const invoiceData = await accountingGetInvoice({ data: { id: invoiceId } } as any);
     const settings = await accountingGetSettings();
+    const accent = (settings as any)?.invoice_accent || "#2457d6";
 
     // Create a DOM element for the invoice
     const container = document.createElement("div");
@@ -101,7 +157,7 @@ async function exportInvoicePDF(invoiceId: string) {
             ${settings.postal_code ? `<p style="font-size: 14px;">کد پستی: ${settings.postal_code}</p>` : ""}
           </div>
           <div style="text-align: left;">
-            <h1 style="font-size: 32px; font-weight: bold; color: #2457d6; margin: 0;">فاکتور</h1>
+            <h1 style="font-size: 32px; font-weight: bold; color: ${accent}; margin: 0;">فاکتور</h1>
             <p style="font-size: 18px; margin-top: 5px;">شماره: ${invoiceData.invoice_number}</p>
             <p style="font-size: 14px; margin-top: 5px;">تاریخ: ${faDate(invoiceData.issued_at)}</p>
           </div>
@@ -119,7 +175,7 @@ async function exportInvoicePDF(invoiceId: string) {
         <!-- Items Table -->
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px;">
           <thead>
-            <tr style="background: #2457d6; color: white;">
+            <tr style="background: ${accent}; color: white;">
               <th style="border: 1px solid #000; padding: 10px; text-align: right;">کالا / خدمت</th>
               <th style="border: 1px solid #000; padding: 10px; text-align: center;">تعداد</th>
               <th style="border: 1px solid #000; padding: 10px; text-align: center;">قیمت واحد</th>
@@ -146,7 +202,7 @@ async function exportInvoicePDF(invoiceId: string) {
               ${invoiceData.discount_amount > 0 ? `<p>تخفیف: <span style="float: right;">-${formatToman(invoiceData.discount_amount)}</span></p>` : ""}
               ${invoiceData.shipping_amount > 0 ? `<p>هزینه ارسال: <span style="float: right;">${formatToman(invoiceData.shipping_amount)}</span></p>` : ""}
               <div style="border-top: 2px solid #000; padding-top: 10px; margin-top: 10px; font-size: 16px; font-weight: bold;">
-                <p>مبلغ نهایی: <span style="float: right; color: #2457d6;">${formatToman(invoiceData.total_amount)}</span></p>
+                <p>مبلغ نهایی: <span style="float: right; color: ${accent};">${formatToman(invoiceData.total_amount)}</span></p>
               </div>
             </div>
           </div>
@@ -196,7 +252,7 @@ async function exportInvoicePDF(invoiceId: string) {
 
     // Save PDF
     const pdfBytes = await pdfDoc.save();
-    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+    const blob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -511,6 +567,7 @@ export function FinanceDashboard() {
 
   return (
     <>
+      <AccountingNav />
       <AdminHeader
         title="داشبورد مالی"
         subtitle="تصویر روشن از جریان پول کسب‌وکار"
@@ -600,6 +657,7 @@ export function Invoices() {
   const rows: any[] = q.data ?? [];
   return (
     <>
+      <AccountingNav />
       <AdminHeader
         title="فاکتورها"
         subtitle="فروش‌ها، مانده‌ها و صورت‌حساب مشتریان"
@@ -684,6 +742,7 @@ type Line = {
   quantity: number;
   list_price: number;
   unit_price: number;
+  unit_cost: number;
   discount: number;
   note: string;
 };
@@ -692,6 +751,7 @@ const newLine = (): Line => ({
   quantity: 1,
   list_price: 0,
   unit_price: 0,
+  unit_cost: 0,
   discount: 0,
   note: "",
 });
@@ -740,6 +800,7 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
           quantity: Number(i.quantity),
           list_price: Number(i.catalog_unit_price ?? 0),
           unit_price: Number(i.final_unit_price ?? 0),
+          unit_cost: Number(i.unit_cost ?? 0),
           discount: Number(i.discount_amount ?? 0),
           note: i.notes ?? "",
           product_id: i.product_id,
@@ -769,13 +830,14 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
           shippingAmount: Number(form.shippingAmount),
           paidAmount: Number(form.paidAmount),
           paymentStatus: form.paymentStatus,
-          paymentMethod: form.paymentMethod === "card" ? "card_transfer" : form.paymentMethod,
+          paymentMethod: form.paymentMethod,
           items: items.map((i) => ({
             productId: i.product_id,
             productName: i.title,
             quantity: i.quantity,
             catalogUnitPrice: i.list_price,
             finalUnitPrice: i.unit_price,
+            unitCost: i.unit_cost,
             discountAmount: i.discount,
             notes: i.note,
           })),
@@ -876,6 +938,7 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
                 <th>تعداد</th>
                 <th>قیمت سایت</th>
                 <th>قیمت فاکتور</th>
+                <th>بهای تمام‌شده</th>
                 <th>تخفیف</th>
                 <th>مبلغ ردیف</th>
                 <th></th>
@@ -896,6 +959,7 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
                           update(i, "product_id", p.id);
                           update(i, "list_price", Number(p.price));
                           update(i, "unit_price", Number(p.price));
+                          update(i, "unit_cost", Number(p.costPrice ?? 0));
                         }
                       }}
                     />
@@ -921,6 +985,14 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
                       className={inputCls}
                       value={line.unit_price}
                       onChange={(e) => update(i, "unit_price", Number(e.target.value))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      className={inputCls}
+                      value={line.unit_cost}
+                      onChange={(e) => update(i, "unit_cost", Number(e.target.value))}
                     />
                   </td>
                   <td>
@@ -992,6 +1064,19 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
               ))}
             </select>
           </Field>
+          <Field label="روش پرداخت">
+            <select
+              className={selectCls}
+              value={form.paymentMethod}
+              onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
+            >
+              {Object.entries(methodLabel).map(([v, l]) => (
+                <option value={v} key={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
         <div className="mt-4 flex flex-wrap gap-4 border-t-2 border-ink pt-4 text-sm font-bold">
           <span>جمع: {money(sub)}</span>
@@ -1010,8 +1095,25 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
   const saveFn = isIncome ? accountingSaveIncome : accountingSaveExpense;
   const deleteFn = isIncome ? accountingDeleteIncome : accountingDeleteExpense;
   const q = useQuery({ queryKey: ["accounting", kind], queryFn: () => fn() });
+  const categories = useQuery({
+    queryKey: ["accounting-categories"],
+    queryFn: () => accountingListCategories(),
+    enabled: !isIncome,
+  });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<any | null>(null);
+  /** Keep the total in sync when both quantity and unit price are set, without
+   *  blocking manual override of the total for entries with no breakdown. */
+  const setQty = (quantity: string) => {
+    const unitPrice = Number(form.unitPrice || 0);
+    const amount = quantity && unitPrice ? Number(quantity) * unitPrice : form.amount;
+    setForm({ ...form, quantity, amount });
+  };
+  const setUnitPrice = (unitPrice: string) => {
+    const quantity = Number(form.quantity || 0);
+    const amount = quantity && unitPrice ? quantity * Number(unitPrice) : form.amount;
+    setForm({ ...form, unitPrice, amount });
+  };
   const save = useMutation({
     mutationFn: () =>
       saveFn({
@@ -1020,18 +1122,23 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
               id: form?.id ?? null,
               title: form.title,
               category: form.category,
-              amount: form.amount,
+              amount: Number(form.amount),
               occurredAt: new Date(`${form.date}T00:00:00.000Z`).toISOString(),
-              paymentMethod: form.payment_method === "card" ? "card_transfer" : form.payment_method,
+              paymentMethod: form.payment_method,
               notes: form.notes,
             }
           : {
               id: form?.id ?? null,
               title: form.title,
-              totalAmount: form.amount,
+              categoryId: form.categoryId || null,
+              quantity: form.quantity ? Number(form.quantity) : null,
+              unit: form.unit || null,
+              unitPrice: form.unitPrice ? Number(form.unitPrice) : null,
+              totalAmount: Number(form.amount),
               occurredAt: new Date(`${form.date}T00:00:00.000Z`).toISOString(),
-              paymentMethod: form.payment_method === "card" ? "card_transfer" : form.payment_method,
+              paymentMethod: form.payment_method,
               notes: form.notes,
+              receiptUrl: form.receiptUrl || null,
             },
       } as any),
     onSuccess: () => {
@@ -1051,6 +1158,11 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
     date: new Date().toISOString().slice(0, 10),
     payment_method: "cash",
     category: "other",
+    categoryId: "",
+    quantity: "",
+    unit: "",
+    unitPrice: "",
+    receiptUrl: null as string | null,
     notes: "",
   };
 
@@ -1067,6 +1179,11 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
       date: (item.occurred_at ?? item.occurredAt ?? new Date().toISOString()).slice(0, 10),
       payment_method: item.payment_method ?? "cash",
       category: item.category ?? "other",
+      categoryId: item.category_id ?? "",
+      quantity: item.quantity ?? "",
+      unit: item.unit ?? "",
+      unitPrice: item.unitPrice ?? item.unit_price ?? "",
+      receiptUrl: item.receipt_url ?? null,
       notes: item.notes ?? "",
     });
     setOpen(true);
@@ -1074,6 +1191,7 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
 
   return (
     <>
+      <AccountingNav />
       <AdminHeader
         title={isIncome ? "درآمدها" : "هزینه‌ها"}
         subtitle={
@@ -1116,7 +1234,62 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                 />
               </Field>
-              <Field label="مبلغ">
+              {isIncome ? (
+                <Field label="دسته‌بندی">
+                  <input
+                    className={inputCls}
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    placeholder="مثلاً فروش حضوری"
+                  />
+                </Field>
+              ) : (
+                <Field label="دسته‌بندی">
+                  <select
+                    className={selectCls}
+                    value={form.categoryId}
+                    onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+                  >
+                    <option value="">— بدون دسته —</option>
+                    {(categories.data ?? []).map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
+              {!isIncome && (
+                <>
+                  <Field label="تعداد (اختیاری)">
+                    <input
+                      type="number"
+                      min="0"
+                      className={inputCls}
+                      value={form.quantity}
+                      onChange={(e) => setQty(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="واحد (اختیاری)">
+                    <input
+                      className={inputCls}
+                      placeholder="عدد، متر، کیلوگرم…"
+                      value={form.unit}
+                      onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="قیمت واحد (اختیاری)">
+                    <input
+                      type="number"
+                      min="0"
+                      className={inputCls}
+                      value={form.unitPrice}
+                      onChange={(e) => setUnitPrice(e.target.value)}
+                    />
+                  </Field>
+                </>
+              )}
+              <Field label="مبلغ کل">
                 <input
                   type="number"
                   className={inputCls}
@@ -1145,22 +1318,7 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
                   ))}
                 </select>
               </Field>
-              {!isIncome && (
-                <Field label="دسته‌بندی">
-                  <select
-                    className={selectCls}
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  >
-                    <option value="other">سایر</option>
-                    <option value="marketing">بازاریابی</option>
-                    <option value="operations">عملیات</option>
-                    <option value="salary">حقوق</option>
-                    <option value="inventory">موجودی</option>
-                  </select>
-                </Field>
-              )}
-              <div className={isIncome ? "sm:col-span-2" : "sm:col-span-1"}>
+              <div className="sm:col-span-2">
                 <Field label="توضیحات">
                   <input
                     className={inputCls}
@@ -1169,6 +1327,15 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
                   />
                 </Field>
               </div>
+              {!isIncome && (
+                <div className="sm:col-span-2">
+                  <ImageUpload
+                    label="رسید (اختیاری)"
+                    value={form.receiptUrl}
+                    onChange={(url) => setForm({ ...form, receiptUrl: url })}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -1197,6 +1364,12 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
               <li key={x.id} className="flex flex-wrap items-center gap-3 p-3">
                 <Tag tone={isIncome ? "ok" : "warn"}>{isIncome ? "درآمد" : "هزینه"}</Tag>
                 <span className="font-bold">{x.title}</span>
+                <Tag>{isIncome ? x.category : (x.expense_categories?.name ?? "بدون دسته")}</Tag>
+                {!isIncome && x.receipt_url && (
+                  <a href={x.receipt_url} target="_blank" rel="noreferrer" className="text-xs font-bold text-ink underline">
+                    رسید
+                  </a>
+                )}
                 <span className="text-xs text-ink-2">{date(x.occurred_at)}</span>
                 <span className="ms-auto font-mono">{money(isIncome ? x.amount : x.totalAmount)}</span>
                 <IconBtn label="ویرایش" onClick={() => openEdit(x)}>
@@ -1227,6 +1400,7 @@ export function Ledger() {
   });
   return (
     <>
+      <AccountingNav />
       <AdminHeader title="تراکنش‌ها" subtitle="دفتر مرکزی تمام ورود و خروج‌های مالی" />
       <Panel className="overflow-hidden">
         {q.isLoading ? (
@@ -1236,13 +1410,14 @@ export function Ledger() {
         ) : (
           <ul className="divide-y-2 divide-ink">
             {(q.data ?? []).map((t: any) => (
-              <li key={t.id} className="flex flex-wrap gap-3 p-3 text-sm">
-                <Tag tone={t.type === "income" ? "ok" : "warn"}>
-                  {t.type === "income" ? "درآمد" : "هزینه"}
+              <li key={t.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
+                <Tag tone={t.transaction_type === "income" ? "ok" : "warn"}>
+                  {t.transaction_type === "income" ? "درآمد" : "هزینه"}
                 </Tag>
-                <span className="font-bold">{t.title ?? t.source}</span>
+                <span className="font-bold">{t.description ?? t.category ?? "—"}</span>
+                {t.category && <Tag>{t.category}</Tag>}
                 <span className="text-xs text-ink-2">
-                  {date(t.date)} · {methodLabel[t.payment_method] ?? "—"}
+                  {date(t.occurred_at)} · {methodLabel[t.payment_method] ?? "—"}
                 </span>
                 <span className="ms-auto font-mono">{money(t.amount)}</span>
               </li>
@@ -1256,22 +1431,67 @@ export function Ledger() {
 
 export function Reports() {
   const [range, setRange] = useState("month");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const useCustomRange = Boolean(customFrom || customTo);
   const q = useQuery({
-    queryKey: ["accounting-report", range],
-    queryFn: () => accountingReport({ data: { range } } as any),
+    queryKey: ["accounting-report", range, customFrom, customTo],
+    queryFn: () =>
+      accountingReport({
+        data: useCustomRange
+          ? {
+              from: customFrom ? new Date(`${customFrom}T00:00:00.000Z`).toISOString() : undefined,
+              to: customTo ? new Date(`${customTo}T23:59:59.999Z`).toISOString() : undefined,
+            }
+          : { range },
+      } as any),
   });
   const d: any = q.data ?? {};
   return (
     <>
+      <AccountingNav />
       <AdminHeader
         title="گزارش‌های مالی"
         subtitle="جمع‌بندی فروش، هزینه و سود در بازه انتخابی"
         action={
-          <select className={selectCls} value={range} onChange={(e) => setRange(e.target.value)}>
-            <option value="week">هفته</option>
-            <option value="month">ماه</option>
-            <option value="year">سال</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className={selectCls}
+              value={range}
+              disabled={useCustomRange}
+              onChange={(e) => setRange(e.target.value)}
+            >
+              <option value="today">امروز</option>
+              <option value="week">این هفته</option>
+              <option value="month">این ماه</option>
+              <option value="last_month">ماه قبل</option>
+              <option value="year">امسال</option>
+            </select>
+            <span className="text-xs font-bold text-ink-2">یا بازه دلخواه:</span>
+            <input
+              type="date"
+              className={inputCls}
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+            />
+            <input
+              type="date"
+              className={inputCls}
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+            />
+            {useCustomRange && (
+              <Btn
+                variant="ghost"
+                onClick={() => {
+                  setCustomFrom("");
+                  setCustomTo("");
+                }}
+              >
+                پاک کردن بازه
+              </Btn>
+            )}
+          </div>
         }
       />
       {q.isLoading ? (
@@ -1279,12 +1499,16 @@ export function Reports() {
       ) : (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           {[
-            ["درآمد", d.income],
-            ["هزینه", d.expense],
             ["فروش ناخالص", d.grossSales],
+            ["تخفیف‌ها", d.discounts],
+            ["برگشت وجه", d.refunds],
             ["فروش خالص", d.netSales],
+            ["بهای تمام‌شده (COGS)", d.costOfGoods],
             ["سود ناخالص", d.grossProfit],
+            ["مجموع هزینه‌ها", d.totalExpenses],
             ["سود خالص", d.netProfit],
+            ["دریافت‌شده", d.received],
+            ["مانده دریافت‌نشده", d.unreceived],
           ].map(([l, v]) => (
             <Stat key={String(l)} label={String(l)} value={money(v)} />
           ))}
@@ -1304,11 +1528,13 @@ export function AccountingSettings() {
     postal_code: "",
     currency: "تومان",
     invoice_prefix: "INV-",
-    invoice_start: 1,
+    invoice_next_number: 1000,
+    invoice_accent: "#2457d6",
+    logo_url: null,
     footer_text: "",
   });
   useEffect(() => {
-    if (q.data) setF({ ...f, ...q.data });
+    if (q.data) setF((prev: any) => ({ ...prev, ...q.data }));
   }, [q.data]);
   const s = useMutation({
     mutationFn: () =>
@@ -1321,15 +1547,16 @@ export function AccountingSettings() {
           postalCode: f.postal_code ?? null,
           currency: f.currency ?? "تومان",
           invoicePrefix: f.invoice_prefix ?? "INV-",
-          invoiceNextNumber: Number(f.invoice_next_number ?? f.invoice_start ?? 1),
+          invoiceNextNumber: Number(f.invoice_next_number ?? 1000),
           footerText: f.footer_text ?? null,
-          invoiceAccent: f.invoice_accent ?? "#f15832",
+          invoiceAccent: f.invoice_accent ?? "#2457d6",
         },
       } as any),
     onSuccess: () => qc.invalidateQueries(),
   });
   return (
     <>
+      <AccountingNav />
       <AdminHeader title="تنظیمات حسابداری" subtitle="اطلاعات چاپ فاکتور و قواعد شماره‌گذاری" />
       <Panel className="p-4">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1369,14 +1596,38 @@ export function AccountingSettings() {
               onChange={(e) => setF({ ...f, invoice_prefix: e.target.value })}
             />
           </Field>
-          <Field label="شماره شروع">
+          <Field label="شماره فاکتور بعدی">
             <input
               type="number"
+              min={1}
+              dir="ltr"
               className={inputCls}
-              value={f.invoice_start ?? 1}
-              onChange={(e) => setF({ ...f, invoice_start: Number(e.target.value) })}
+              value={f.invoice_next_number ?? 1000}
+              onChange={(e) => setF({ ...f, invoice_next_number: Number(e.target.value) })}
             />
           </Field>
+          <Field label="واحد پول">
+            <input
+              className={inputCls}
+              value={f.currency ?? "تومان"}
+              onChange={(e) => setF({ ...f, currency: e.target.value })}
+            />
+          </Field>
+          <Field label="رنگ اصلی فاکتور">
+            <input
+              type="color"
+              className={`${inputCls} h-11 p-1`}
+              value={f.invoice_accent ?? "#2457d6"}
+              onChange={(e) => setF({ ...f, invoice_accent: e.target.value })}
+            />
+          </Field>
+          <div className="sm:col-span-2">
+            <ImageUpload
+              label="لوگو کسب‌وکار"
+              value={f.logo_url ?? null}
+              onChange={(url) => setF({ ...f, logo_url: url })}
+            />
+          </div>
           <div className="sm:col-span-2">
             <Field label="متن پایین فاکتور">
               <textarea

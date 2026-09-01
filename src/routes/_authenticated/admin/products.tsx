@@ -186,6 +186,15 @@ function AdminProducts() {
                 }
               />
             </Field>
+            <Field label="بهای تمام‌شده (تومان)">
+              <input
+                type="number"
+                dir="ltr"
+                className={inputCls}
+                value={form.costPrice}
+                onChange={(e) => setForm({ ...form, costPrice: Number(e.target.value) })}
+              />
+            </Field>
             <Field label="موجودی">
               <input
                 type="number"

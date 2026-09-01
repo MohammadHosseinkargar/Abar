@@ -17,8 +17,16 @@ export function AdminHeader({ title, subtitle, action }: { title: string; subtit
 }
 
 
-export function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`border-2 border-ink bg-card nb-sh-md ${className}`}>{children}</div>;
+export function Panel({
+  children,
+  className = "",
+  id,
+}: {
+  children: ReactNode;
+  className?: string;
+  id?: string;
+}) {
+  return <div id={id} className={`border-2 border-ink bg-card nb-sh-md ${className}`}>{children}</div>;
 }
 
 const statTones = ["var(--nb-primary)", "var(--nb-success)", "var(--nb-warning)", "var(--nb-accent)"];
