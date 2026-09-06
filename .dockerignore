@@ -3,7 +3,6 @@
 .env.*
 !.env.example
 node_modules
-.output
 .tanstack
 .vinxi
 .nitro
