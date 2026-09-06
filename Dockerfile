@@ -8,11 +8,10 @@ ARG VITE_GA_MEASUREMENT_ID
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
 ENV VITE_GA_MEASUREMENT_ID=$VITE_GA_MEASUREMENT_ID
-# Copy pre-built output directly — npm install and vite build run on the
-# developer's machine (or CI) where network access to npm is fast.
-# On the server we just package the already-built artefacts.
-COPY .output ./.output
-COPY package.json ./
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
 
 FROM base
 WORKDIR /usr/src/app
