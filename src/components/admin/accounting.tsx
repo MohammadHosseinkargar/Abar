@@ -129,151 +129,224 @@ export function AccountingNav() {
 }
 
 // Export Invoice as PDF
+// Strategy: open a print-ready HTML page in a new window and trigger
+// window.print(). This lets the browser use the already-loaded Vazirmatn
+// font (which html2canvas cannot access due to CORS) and produces a
+// vector/text PDF — not a rasterised screenshot.
 async function exportInvoicePDF(invoiceId: string) {
   try {
     const invoiceData = await accountingGetInvoice({ data: { id: invoiceId } } as any);
     const settings = await accountingGetSettings();
     const accent = (settings as any)?.invoice_accent || "#2457d6";
 
-    // Create a DOM element for the invoice
-    const container = document.createElement("div");
-    container.style.position = "absolute";
-    container.style.left = "-9999px";
-    container.style.top = "-9999px";
-    container.style.width = "210mm";
-    // No padding on the outer wrapper — the inner div already has 20mm padding.
-    // Previously both had 20mm which created 40mm of padding on each side.
-    container.style.fontFamily = "Vazirmatn, sans-serif";
-    container.style.background = "white";
-    container.style.minHeight = "297mm";
-    container.innerHTML = `
-      <div style="border: 1px solid #000; padding: 20mm; min-height: 297mm; font-family: Vazirmatn, sans-serif;">
-        <!-- Header -->
-        <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
-          <div>
-            ${settings.business_name ? `<h1 style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">${settings.business_name}</h1>` : ""}
-            ${settings.phone ? `<p style="font-size: 14px;">تلفن: ${settings.phone}</p>` : ""}
-            ${settings.address ? `<p style="font-size: 14px;">آدرس: ${settings.address}</p>` : ""}
-            ${settings.postal_code ? `<p style="font-size: 14px;">کد پستی: ${settings.postal_code}</p>` : ""}
-          </div>
-          <div style="text-align: left;">
-            <h1 style="font-size: 32px; font-weight: bold; color: ${accent}; margin: 0;">فاکتور</h1>
-            <p style="font-size: 18px; margin-top: 5px;">شماره: ${invoiceData.invoice_number}</p>
-            <p style="font-size: 14px; margin-top: 5px;">تاریخ: ${faDate(invoiceData.issued_at)}</p>
-          </div>
-        </div>
+    const items: string = (invoiceData.invoice_items || [])
+      .map(
+        (item: any) => `
+        <tr>
+          <td>${item.product_name}</td>
+          <td class="center">${item.quantity}</td>
+          <td class="center">${formatToman(item.final_unit_price)}</td>
+          <td class="center">${formatToman(item.line_total || item.quantity * item.final_unit_price)}</td>
+        </tr>`,
+      )
+      .join("");
 
-        <!-- Customer Info -->
-        <div style="border: 1px solid #000; padding: 15px; margin-bottom: 20px; background: #f9f9f9;">
-          <h3 style="font-size: 14px; margin: 0 0 10px 0; font-weight: bold;">اطلاعات مشتری</h3>
-          <p style="font-size: 14px; margin: 5px 0;">${invoiceData.customer_name}</p>
-          ${invoiceData.customer_phone ? `<p style="font-size: 14px; margin: 5px 0;">تلفن: ${invoiceData.customer_phone}</p>` : ""}
-          ${invoiceData.customer_address ? `<p style="font-size: 14px; margin: 5px 0;">آدرس: ${invoiceData.customer_address}</p>` : ""}
-          ${invoiceData.customer_postal_code ? `<p style="font-size: 14px; margin: 5px 0;">کد پستی: ${invoiceData.customer_postal_code}</p>` : ""}
-        </div>
+    const html = `<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>فاکتور ${invoiceData.invoice_number}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Vazirmatn", sans-serif;
+      font-size: 13px;
+      color: #111;
+      background: #fff;
+      direction: rtl;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 18mm 20mm;
+      border: 1px solid #000;
+    }
+    /* ── Header ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
+      padding-bottom: 14px;
+      border-bottom: 2px solid #000;
+    }
+    .header .biz h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .header .biz p  { font-size: 12px; margin-top: 3px; color: #444; }
+    .header .inv-label { text-align: left; }
+    .header .inv-label h2 { font-size: 28px; font-weight: 700; color: ${accent}; }
+    .header .inv-label p  { font-size: 13px; margin-top: 4px; }
+    /* ── Customer ── */
+    .customer {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 12px 14px;
+      margin-bottom: 20px;
+      background: #f9f9f9;
+    }
+    .customer h3 { font-size: 12px; font-weight: 700; margin-bottom: 8px; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+    .customer p  { font-size: 13px; margin-top: 4px; }
+    /* ── Items table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 12px;
+    }
+    thead tr { background: ${accent}; color: #fff; }
+    th, td {
+      border: 1px solid #bbb;
+      padding: 8px 10px;
+      text-align: right;
+    }
+    td.center, th.center { text-align: center; }
+    tbody tr:nth-child(even) { background: #f5f5f5; }
+    /* ── Totals ── */
+    .totals {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 20px;
+    }
+    .totals-box {
+      width: 260px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 12px 14px;
+      font-size: 13px;
+    }
+    .totals-box .row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+    }
+    .totals-box .final {
+      border-top: 2px solid #000;
+      margin-top: 8px;
+      padding-top: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      color: ${accent};
+    }
+    /* ── Payment info ── */
+    .payment {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      padding: 10px 0;
+      border-top: 1px solid #ddd;
+      margin-bottom: 20px;
+    }
+    .payment p { margin-top: 5px; }
+    /* ── Footer ── */
+    .footer {
+      margin-top: 24px;
+      padding-top: 10px;
+      border-top: 1px solid #ddd;
+      font-size: 11px;
+      color: #777;
+      text-align: center;
+    }
+    /* ── Print tweaks ── */
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { border: none; margin: 0; padding: 12mm 16mm; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <!-- Header -->
+  <div class="header">
+    <div class="biz">
+      ${settings.business_name ? `<h1>${settings.business_name}</h1>` : ""}
+      ${settings.phone ? `<p>تلفن: ${settings.phone}</p>` : ""}
+      ${settings.address ? `<p>آدرس: ${settings.address}</p>` : ""}
+      ${settings.postal_code ? `<p>کد پستی: ${settings.postal_code}</p>` : ""}
+    </div>
+    <div class="inv-label">
+      <h2>فاکتور</h2>
+      <p>شماره: <strong>${invoiceData.invoice_number}</strong></p>
+      <p>تاریخ: ${faDate(invoiceData.issued_at)}</p>
+    </div>
+  </div>
 
-        <!-- Items Table -->
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px;">
-          <thead>
-            <tr style="background: ${accent}; color: white;">
-              <th style="border: 1px solid #000; padding: 10px; text-align: right;">کالا / خدمت</th>
-              <th style="border: 1px solid #000; padding: 10px; text-align: center;">تعداد</th>
-              <th style="border: 1px solid #000; padding: 10px; text-align: center;">قیمت واحد</th>
-              <th style="border: 1px solid #000; padding: 10px; text-align: center;">مبلغ</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${(invoiceData.invoice_items || []).map((item: any) => `
-              <tr>
-                <td style="border: 1px solid #000; padding: 8px;">${item.product_name}</td>
-                <td style="border: 1px solid #000; padding: 8px; text-align: center;">${item.quantity}</td>
-                <td style="border: 1px solid #000; padding: 8px; text-align: center;">${formatToman(item.final_unit_price)}</td>
-                <td style="border: 1px solid #000; padding: 8px; text-align: center;">${formatToman(item.line_total || (item.quantity * item.final_unit_price))}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
+  <!-- Customer -->
+  <div class="customer">
+    <h3>اطلاعات مشتری</h3>
+    <p><strong>${invoiceData.customer_name}</strong></p>
+    ${invoiceData.customer_phone ? `<p>تلفن: ${invoiceData.customer_phone}</p>` : ""}
+    ${invoiceData.customer_address ? `<p>آدرس: ${invoiceData.customer_address}</p>` : ""}
+    ${invoiceData.customer_postal_code ? `<p>کد پستی: ${invoiceData.customer_postal_code}</p>` : ""}
+  </div>
 
-        <!-- Totals -->
-        <div style="display: flex; justify-content: flex-end;">
-          <div style="width: 300px;">
-            <div style="border-top: 2px solid #000; padding-top: 10px; margin-bottom: 5px; font-size: 14px;">
-              <p>جمع: <span style="float: right;">${formatToman(invoiceData.subtotal)}</span></p>
-              ${invoiceData.discount_amount > 0 ? `<p>تخفیف: <span style="float: right;">-${formatToman(invoiceData.discount_amount)}</span></p>` : ""}
-              ${invoiceData.shipping_amount > 0 ? `<p>هزینه ارسال: <span style="float: right;">${formatToman(invoiceData.shipping_amount)}</span></p>` : ""}
-              <div style="border-top: 2px solid #000; padding-top: 10px; margin-top: 10px; font-size: 16px; font-weight: bold;">
-                <p>مبلغ نهایی: <span style="float: right; color: ${accent};">${formatToman(invoiceData.total_amount)}</span></p>
-              </div>
-            </div>
-          </div>
-        </div>
+  <!-- Items -->
+  <table>
+    <thead>
+      <tr>
+        <th>کالا / خدمت</th>
+        <th class="center">تعداد</th>
+        <th class="center">قیمت واحد</th>
+        <th class="center">مبلغ</th>
+      </tr>
+    </thead>
+    <tbody>${items}</tbody>
+  </table>
 
-        <!-- Payment Info -->
-        <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px;">
-          <div>
-            <p>وضعیت پرداخت: <strong>${paymentLabel[invoiceData.payment_status] || invoiceData.payment_status}</strong></p>
-            <p>روش پرداخت: <strong>${methodLabel[invoiceData.payment_method] || invoiceData.payment_method}</strong></p>
-          </div>
-          <div style="text-align: left;">
-            <p>پرداخت شده: ${formatToman(invoiceData.paid_amount)}</p>
-            <p>باقی‌مانده: ${formatToman(invoiceData.total_amount - invoiceData.paid_amount)}</p>
-          </div>
-        </div>
+  <!-- Totals -->
+  <div class="totals">
+    <div class="totals-box">
+      <div class="row"><span>جمع کل:</span><span>${formatToman(invoiceData.subtotal)}</span></div>
+      ${invoiceData.discount_amount > 0 ? `<div class="row"><span>تخفیف:</span><span>-${formatToman(invoiceData.discount_amount)}</span></div>` : ""}
+      ${invoiceData.shipping_amount > 0 ? `<div class="row"><span>هزینه ارسال:</span><span>${formatToman(invoiceData.shipping_amount)}</span></div>` : ""}
+      <div class="row final"><span>مبلغ نهایی:</span><span>${formatToman(invoiceData.total_amount)}</span></div>
+    </div>
+  </div>
 
-        <!-- Footer -->
-        ${settings.footer_text ? `<div style="margin-top: 30px; padding-top: 10px; border-top: 1px solid #000; font-size: 12px; color: #666; text-align: center;">
-          ${settings.footer_text}
-        </div>` : ""}
-      </div>
-    `;
+  <!-- Payment -->
+  <div class="payment">
+    <div>
+      <p>وضعیت پرداخت: <strong>${paymentLabel[invoiceData.payment_status] || invoiceData.payment_status}</strong></p>
+      <p>روش پرداخت: <strong>${methodLabel[invoiceData.payment_method] || invoiceData.payment_method}</strong></p>
+    </div>
+    <div>
+      <p>پرداخت شده: ${formatToman(invoiceData.paid_amount)}</p>
+      <p>باقی‌مانده: ${formatToman(invoiceData.total_amount - invoiceData.paid_amount)}</p>
+    </div>
+  </div>
 
-    document.body.appendChild(container);
+  ${settings.footer_text ? `<div class="footer">${settings.footer_text}</div>` : ""}
+</div>
+<script>
+  // Wait for Vazirmatn to load, then print
+  document.fonts.ready.then(function() {
+    window.print();
+    // Close the tab after the print dialog closes (works in most browsers)
+    window.addEventListener("afterprint", function() { window.close(); });
+  });
+</script>
+</body>
+</html>`;
 
-    // Wait for custom fonts (Vazirmatn) to finish loading before capturing,
-    // otherwise html2canvas renders Persian text as boxes/fallback glyphs.
-    await document.fonts.ready;
-
-    // Capture with html2canvas
-    const canvas = await html2canvas(container, {
-      scale: 2,
-      useCORS: true,
-      windowWidth: container.scrollWidth,
-      windowHeight: container.scrollHeight,
-    });
-
-    document.body.removeChild(container);
-
-    // Convert canvas to ArrayBuffer via toBlob — more reliable than passing a
-    // data URL string to pdf-lib's embedPng across different versions.
-    const pngBytes = await new Promise<ArrayBuffer>((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) { reject(new Error("canvas.toBlob failed")); return; }
-        blob.arrayBuffer().then(resolve).catch(reject);
-      }, "image/png");
-    });
-
-    // Create PDF
-    const pdfDoc = await pdfLib.PDFDocument.create();
-    const page = pdfDoc.addPage([canvas.width / 2, canvas.height / 2]);
-    const png = await pdfDoc.embedPng(pngBytes);
-    page.drawImage(png, {
-      x: 0,
-      y: 0,
-      width: page.getWidth(),
-      height: page.getHeight(),
-    });
-
-    // Save PDF
-    const pdfBytes = await pdfDoc.save();
-    const blob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `فاکتور-${invoiceData.invoice_number}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("مرورگر جلوی باز شدن پنجره جدید را گرفت. لطفاً pop-up blocker را برای این سایت غیرفعال کنید.");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
   } catch (error) {
     console.error("Error exporting PDF:", error);
     alert("خطا در تولید PDF. لطفاً دوباره تلاش کنید.");
