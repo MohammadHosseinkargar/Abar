@@ -7,7 +7,23 @@ async function assertAdmin(supabase: any, userId: string) { const { data } = awa
 const money = z.number().int().min(0).max(9_000_000_000_000);
 const paymentMethod = z.enum(["cash", "pos", "card_transfer", "gateway", "other"]).nullable().optional();
 const invoiceSchema = z.object({ id:z.string().uuid().nullable().optional(), issuedAt:z.string().datetime().optional(), customerName:z.string().trim().min(1).max(160), customerPhone:z.string().trim().max(32).optional(), customerAddress:z.string().trim().max(600).optional(), customerPostalCode:z.string().trim().max(20).optional(), notes:z.string().trim().max(2000).optional(), discountAmount:money.optional(), shippingAmount:money.optional(), paidAmount:money.optional(), paymentStatus:z.enum(["unpaid","partial","paid","cancelled"]), paymentMethod, items:z.array(z.object({productId:z.string().uuid().nullable().optional(),productName:z.string().trim().min(1).max(240),quantity:z.number().int().min(1).max(100000),catalogUnitPrice:money,finalUnitPrice:money,unitCost:money.optional(),discountAmount:money.optional(),notes:z.string().trim().max(1000).optional()})).min(1).max(200) });
-const expenseSchema = z.object({id:z.string().uuid().nullable().optional(),title:z.string().trim().min(1).max(160),categoryId:z.string().uuid().nullable().optional(),quantity:z.number().int().min(1).nullable().optional(),unit:z.string().trim().max(30).optional(),unitPrice:money.nullable().optional(),totalAmount:money.refine(v=>v>0),occurredAt:z.string().datetime(),paymentMethod,notes:z.string().trim().max(2000).optional(),receiptUrl:z.string().trim().max(500).optional()});
+const receiptUrlSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .refine(
+    (v) => {
+      try {
+        const u = new URL(v);
+        return u.protocol === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "receiptUrl must be a valid HTTPS URL" },
+  )
+  .optional();
+const expenseSchema = z.object({id:z.string().uuid().nullable().optional(),title:z.string().trim().min(1).max(160),categoryId:z.string().uuid().nullable().optional(),quantity:z.number().int().min(1).nullable().optional(),unit:z.string().trim().max(30).optional(),unitPrice:money.nullable().optional(),totalAmount:money.refine(v=>v>0),occurredAt:z.string().datetime(),paymentMethod,notes:z.string().trim().max(2000).optional(),receiptUrl:receiptUrlSchema});
 const incomeSchema = z.object({id:z.string().uuid().nullable().optional(),title:z.string().trim().min(1).max(160),category:z.string().trim().min(1).max(80),amount:money.refine(v=>v>0),occurredAt:z.string().datetime(),paymentMethod,notes:z.string().trim().max(2000).optional()});
 const auth = [requireSupabaseAuth] as const;
 export const accountingListProducts=createServerFn({method:"GET"}).middleware(auth).handler(async({context})=>{await assertAdmin(context.supabase,context.userId);const d=await db();const{data,error}=await d.from("products").select("id,name,price,cost_price,is_active").order("name");if(error)throw error;return(data??[]).map((p:any)=>({...p,price:Number(p.price),costPrice:Number(p.cost_price??0)}));});
@@ -24,9 +40,113 @@ export const accountingListExpenses=createServerFn({method:"GET"}).middleware(au
 export const accountingSaveExpense=createServerFn({method:"POST"}).middleware(auth).inputValidator((i:unknown)=>expenseSchema.parse(i)).handler(async({data,context})=>{await assertAdmin(context.supabase,context.userId);const d=await db();const row={title:data.title,category_id:data.categoryId??null,quantity:data.quantity??null,unit:data.unit??null,unit_price:data.unitPrice??null,total_amount:data.totalAmount,occurred_at:data.occurredAt,payment_method:data.paymentMethod??null,notes:data.notes??null,receipt_url:data.receiptUrl??null,created_by:context.userId};const{error}=data.id?await d.from("expenses").update(row).eq("id",data.id):await d.from("expenses").insert(row);if(error)throw error;return{ok:true};});
 export const accountingDeleteExpense=createServerFn({method:"POST"}).middleware(auth).inputValidator((i:unknown)=>z.object({id:z.string().uuid()}).parse(i)).handler(async({data,context})=>{await assertAdmin(context.supabase,context.userId);const d=await db();const{error}=await d.from("expenses").delete().eq("id",data.id);if(error)throw error;return{ok:true};});
 const rangeSchema=z.object({from:z.string().datetime().optional(),to:z.string().datetime().optional(),range:z.enum(["today","week","month","last_month","year"]).optional()});
-function resolveRange(input: z.infer<typeof rangeSchema> | undefined) { if (input?.from || input?.to || !input?.range) return input; const end=new Date(), start=new Date(); if(input.range==="today")start.setHours(0,0,0,0); else if(input.range==="week")start.setDate(start.getDate()-6); else if(input.range==="month")start.setDate(1); else if(input.range==="last_month"){start.setMonth(start.getMonth()-1,1);end.setDate(0)} else start.setMonth(0,1); return {from:start.toISOString(),to:end.toISOString()}; }
+function resolveRange(input: z.infer<typeof rangeSchema> | undefined) {
+  if (input?.from || input?.to || !input?.range) return input;
+  const now = new Date();
+  const start = new Date();
+  const end = new Date();
+
+  if (input.range === "today") {
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+  } else if (input.range === "week") {
+    start.setDate(start.getDate() - 6);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+  } else if (input.range === "month") {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+  } else if (input.range === "last_month") {
+    // First day of previous month
+    start.setMonth(start.getMonth() - 1, 1);
+    start.setHours(0, 0, 0, 0);
+    // Last day of previous month at EOD
+    end.setDate(0); // moves to last day of previous month
+    end.setHours(23, 59, 59, 999);
+  } else {
+    // year: Jan 1 of current year → now
+    start.setMonth(0, 1);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+  }
+
+  return { from: start.toISOString(), to: end.toISOString() };
+}
 export const accountingListTransactions=createServerFn({method:"GET"}).middleware(auth).inputValidator((i:unknown)=>rangeSchema.optional().parse(i)).handler(async({data,context})=>{await assertAdmin(context.supabase,context.userId);const d=await db();let q=d.from("financial_transactions").select("*").order("occurred_at",{ascending:false});if(data?.from)q=q.gte("occurred_at",data.from);if(data?.to)q=q.lte("occurred_at",data.to);const{data:rows,error}=await q;if(error)throw error;return(rows??[]).map((r:any)=>({...r,amount:Number(r.amount)}));});
-export const accountingDashboard=createServerFn({method:"GET"}).middleware(auth).inputValidator((i:unknown)=>rangeSchema.optional().parse(i)).handler(async({data,context})=>{await assertAdmin(context.supabase,context.userId);const d=await db();data=resolveRange(data);let iq=d.from("invoices").select("id,issued_at,subtotal,discount_amount,total_amount,paid_amount,payment_status,invoice_items(quantity,unit_cost)").neq("payment_status","cancelled");let eq=d.from("expenses").select("total_amount,occurred_at,expense_categories(is_refund)");let tq=d.from("financial_transactions").select("transaction_type,amount,occurred_at,category");if(data?.from){iq=iq.gte("issued_at",data.from);eq=eq.gte("occurred_at",data.from);tq=tq.gte("occurred_at",data.from)}if(data?.to){iq=iq.lte("issued_at",data.to);eq=eq.lte("occurred_at",data.to);tq=tq.lte("occurred_at",data.to)}const[ir,er,tr]=await Promise.all([iq,eq,tq]);if(ir.error)throw ir.error;if(er.error)throw er.error;if(tr.error)throw tr.error;const invoices=ir.data??[], expenses=er.data??[], tx=tr.data??[];const grossSales=invoices.reduce((s:any,i:any)=>s+Number(i.subtotal),0),discounts=invoices.reduce((s:any,i:any)=>s+Number(i.discount_amount),0),cogs=invoices.reduce((s:any,i:any)=>s+(i.invoice_items??[]).reduce((a:number,x:any)=>a+Number(x.quantity)*Number(x.unit_cost),0),0),refunds=expenses.filter((e:any)=>(e.expense_categories as any)?.is_refund).reduce((s:any,e:any)=>s+Number(e.total_amount),0),totalExpenses=expenses.reduce((s:any,e:any)=>s+Number(e.total_amount),0),otherExpenses=totalExpenses-refunds,netSales=grossSales-discounts-refunds,grossProfit=netSales-cogs,received=tx.filter((x:any)=>x.transaction_type==='income').reduce((s:any,x:any)=>s+Number(x.amount),0),paidOut=tx.filter((x:any)=>x.transaction_type==='expense').reduce((s:any,x:any)=>s+Number(x.amount),0),unreceived=invoices.reduce((s:any,i:any)=>s+Number(i.total_amount)-Number(i.paid_amount),0);return{grossSales,discounts,refunds,netSales,costOfGoods:cogs,grossProfit,totalExpenses,netProfit:grossProfit-otherExpenses,received,income:received,expense:paidOut,unreceived,transactions:tx.map((x:any)=>({...x,amount:Number(x.amount)}))};});
+export const accountingDashboard=createServerFn({method:"GET"}).middleware(auth).inputValidator((i:unknown)=>rangeSchema.optional().parse(i)).handler(async({data,context})=>{
+  await assertAdmin(context.supabase,context.userId);
+  const d = await db();
+  data = resolveRange(data);
+
+  // Three parallel queries: invoices (with items for COGS), expenses, transactions
+  let iq = d.from("invoices")
+    .select("id,issued_at,subtotal,discount_amount,total_amount,paid_amount,payment_status,invoice_items(quantity,unit_cost)")
+    .neq("payment_status","cancelled");
+  let eq = d.from("expenses")
+    .select("total_amount,occurred_at,expense_categories(is_refund)");
+  let tq = d.from("financial_transactions")
+    .select("transaction_type,amount,occurred_at,category");
+
+  if (data?.from) { iq=iq.gte("issued_at",data.from); eq=eq.gte("occurred_at",data.from); tq=tq.gte("occurred_at",data.from); }
+  if (data?.to)   { iq=iq.lte("issued_at",data.to);   eq=eq.lte("occurred_at",data.to);   tq=tq.lte("occurred_at",data.to);   }
+
+  const [ir,er,tr] = await Promise.all([iq,eq,tq]);
+  if (ir.error) throw ir.error;
+  if (er.error) throw er.error;
+  if (tr.error) throw tr.error;
+
+  const invoices: any[] = ir.data ?? [];
+  const expenses: any[] = er.data ?? [];
+  const tx:       any[] = tr.data ?? [];
+
+  // ── Financial aggregates ─────────────────────────────────────────────────
+  // grossSales: sum of invoice subtotals.  After the 20260906100000 migration
+  // subtotal = sum(qty * final_unit_price) — the true gross before any discounts.
+  const grossSales     = invoices.reduce((s,i) => s + Number(i.subtotal), 0);
+  const discounts      = invoices.reduce((s,i) => s + Number(i.discount_amount), 0);
+  const cogs           = invoices.reduce((s,i) => s + (i.invoice_items ?? []).reduce((a:number,x:any) => a + Number(x.quantity)*Number(x.unit_cost), 0), 0);
+  const refunds        = expenses.filter((e:any) => (e.expense_categories as any)?.is_refund).reduce((s,e) => s + Number(e.total_amount), 0);
+  const totalExpenses  = expenses.reduce((s,e) => s + Number(e.total_amount), 0);
+  const otherExpenses  = totalExpenses - refunds;
+  const netSales       = grossSales - discounts - refunds;
+  const grossProfit    = netSales - cogs;
+  const received       = tx.filter(x => x.transaction_type==="income" ).reduce((s,x) => s + Number(x.amount), 0);
+  const paidOut        = tx.filter(x => x.transaction_type==="expense").reduce((s,x) => s + Number(x.amount), 0);
+  const unreceived     = invoices.reduce((s,i) => s + Math.max(0, Number(i.total_amount) - Number(i.paid_amount)), 0);
+  const netProfit      = grossProfit - otherExpenses;
+
+  // ── Chart data (daily buckets within the queried range) ──────────────────
+  // Group financial_transactions by calendar date (Asia/Tehran) into buckets.
+  // Each bucket: { label: "۱۴۰۳/۰۱/۰۱", income, expense, profit }
+  const buckets: Record<string, { income: number; expense: number }> = {};
+  const fmt = new Intl.DateTimeFormat("fa-IR", {
+    timeZone: "Asia/Tehran",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  for (const t of tx) {
+    const label = fmt.format(new Date(t.occurred_at));
+    if (!buckets[label]) buckets[label] = { income: 0, expense: 0 };
+    if (t.transaction_type === "income")  buckets[label].income  += Number(t.amount);
+    else                                  buckets[label].expense += Number(t.amount);
+  }
+  const chart = Object.entries(buckets)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .map(([label, v]) => ({
+      label,
+      income:  v.income,
+      expense: v.expense,
+      profit:  v.income - v.expense,
+    }));
+
+  return {
+    grossSales, discounts, refunds, netSales,
+    costOfGoods: cogs, grossProfit, totalExpenses,
+    netProfit, received, income: received,
+    expense: paidOut, unreceived, chart,
+    transactions: tx.map((x:any) => ({ ...x, amount: Number(x.amount) })),
+  };
+});
 export const accountingReport=accountingDashboard;
 export const accountingGetSettings=createServerFn({method:"GET"}).middleware(auth).handler(async({context})=>{await assertAdmin(context.supabase,context.userId);const d=await db();const{data,error}=await d.from("financial_settings").select("*").eq("id",true).single();if(error)throw error;return data;});
 export const accountingSaveSettings=createServerFn({method:"POST"}).middleware(auth).inputValidator((i:unknown)=>z.object({businessName:z.string().trim().max(160),logoUrl:z.string().trim().max(500).optional().nullable(),phone:z.string().trim().max(40).optional().nullable(),address:z.string().trim().max(600).optional().nullable(),postalCode:z.string().trim().max(20).optional().nullable(),currency:z.string().trim().min(1).max(20),invoicePrefix:z.string().trim().max(30),invoiceNextNumber:z.number().int().min(1),footerText:z.string().trim().max(1000).optional().nullable(),invoiceAccent:z.string().regex(/^#[0-9a-fA-F]{6}$/)}).parse(i)).handler(async({data,context})=>{await assertAdmin(context.supabase,context.userId);const d=await db();const{error}=await d.from("financial_settings").update({business_name:data.businessName,logo_url:data.logoUrl??null,phone:data.phone??null,address:data.address??null,postal_code:data.postalCode??null,currency:data.currency,invoice_prefix:data.invoicePrefix,invoice_next_number:data.invoiceNextNumber,footer_text:data.footerText??null,invoice_accent:data.invoiceAccent}).eq("id",true);if(error)throw error;return{ok:true};});

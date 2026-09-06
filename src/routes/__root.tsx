@@ -8,6 +8,8 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
+const GA_ID = import.meta.env.VITE_GA_MEASUREMENT_ID as string | undefined;
+
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/app-shell";
@@ -88,7 +90,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Archivo+Black&display=swap" },
+      // Preconnect for GA to reduce latency
+      ...(GA_ID ? [{ rel: "preconnect" as const, href: "https://www.googletagmanager.com" }] : []),
     ],
+    scripts: GA_ID
+      ? [
+          // Load the gtag.js library asynchronously — no render-blocking
+          {
+            tag: "script" as const,
+            attrs: {
+              async: true,
+              src: `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`,
+            },
+          },
+          // Inline initialisation — runs immediately after the library loads
+          {
+            tag: "script" as const,
+            children: [
+              "window.dataLayer = window.dataLayer || [];",
+              "function gtag(){dataLayer.push(arguments);}",
+              "gtag('js', new Date());",
+              `gtag('config', '${GA_ID}', { send_page_view: false });`,
+            ].join("\n"),
+          },
+        ]
+      : [],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -118,6 +144,34 @@ function RootComponent() {
   useEffect(() => {
     registerServiceWorker();
   }, []);
+
+  // Fire GA4 page_view on every SPA navigation
+  useEffect(() => {
+    if (!GA_ID || typeof window === "undefined") return;
+
+    // Send the initial page view on mount
+    const sendPageView = (path: string) => {
+      try {
+        // gtag may be blocked by ad-blockers; guard with typeof check
+        if (typeof window.gtag === "function") {
+          window.gtag("event", "page_view", {
+            page_path: path,
+            page_location: window.location.href,
+          });
+        }
+      } catch {
+        // silently ignore — never crash the app due to Analytics
+      }
+    };
+
+    sendPageView(router.state.location.pathname);
+
+    const unsub = router.subscribe("onResolved", ({ toLocation }) => {
+      sendPageView(toLocation.pathname);
+    });
+
+    return () => unsub();
+  }, [router]);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {

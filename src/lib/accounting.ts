@@ -11,6 +11,8 @@ export function calculateInvoice(lines: InvoiceLineInput[], invoiceDiscount = 0,
 }
 
 export function paymentStatus(total: number, paid: number) {
+  // A zero-total invoice is considered fully paid (nothing owed).
+  if (total <= 0) return "paid" as const;
   if (paid <= 0) return "unpaid" as const;
   return paid >= total ? ("paid" as const) : ("partial" as const);
 }

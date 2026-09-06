@@ -282,50 +282,17 @@ async function exportInvoicePDF(invoiceId: string) {
 }
 
 // ─── Add Account Modal ───────────────────────────────────────────────────────
-
-type AccountForm = {
-  name: string;
-  type: string;
-  initialBalance: string;
-  description: string;
-  isActive: boolean;
-};
-
-type AccountFormErrors = Partial<Record<keyof AccountForm, string>>;
-
-const ACCOUNT_TYPES = [
-  { value: "income",    label: "درآمد" },
-  { value: "expense",   label: "هزینه" },
-  { value: "receivable",label: "دریافتنی" },
-  { value: "payable",   label: "پرداختنی" },
-  { value: "capital",   label: "سرمایه" },
-  { value: "other",     label: "سایر" },
-] as const;
-
-const EMPTY_FORM: AccountForm = {
-  name: "",
-  type: "",
-  initialBalance: "",
-  description: "",
-  isActive: true,
-};
-
-function validateAccountForm(f: AccountForm): AccountFormErrors {
-  const errs: AccountFormErrors = {};
-  if (!f.name.trim()) errs.name = "نام حساب الزامی است.";
-  if (!f.type) errs.type = "نوع حساب الزامی است.";
-  if (f.initialBalance !== "") {
-    const n = Number(f.initialBalance);
-    if (isNaN(n)) errs.initialBalance = "مبلغ باید عدد باشد.";
-    else if (n < 0) errs.initialBalance = "مبلغ نمی‌تواند منفی باشد.";
-  }
-  return errs;
-}
+// NOTE: This modal saves the account name as an expense_category.
+// The system does not yet have a full chart-of-accounts table; type,
+// initialBalance, description, and isActive are therefore NOT persisted.
+// Only the name is stored. The modal is intentionally simplified to reflect
+// what actually gets saved.
 
 function AddAccountModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState<AccountForm>(EMPTY_FORM);
-  const [errors, setErrors] = useState<AccountFormErrors>({});
+  const [name, setName] = useState("");
+  const [nameError, setNameError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // close on ESC
   useEffect(() => {
@@ -341,60 +308,43 @@ function AddAccountModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  function set<K extends keyof AccountForm>(key: K, value: AccountForm[K]) {
-    setForm(f => ({ ...f, [key]: value }));
-    if (errors[key]) setErrors(e => ({ ...e, [key]: undefined }));
-  }
-
   async function handleSave() {
-    const errs = validateAccountForm(form);
-    if (Object.keys(errs).length) { setErrors(errs); return; }
+    if (!name.trim()) { setNameError("نام دسته‌بندی الزامی است."); return; }
     setSaving(true);
+    setSaveError("");
     try {
-      // Save as a manual income/expense category entry so it appears in the
-      // financial ledger immediately.  A dedicated "accounts" table could be
-      // added later; for now we persist to expense_categories (for cost/
-      // liability types) or as a tagged manual_income stub.
-      await accountingSaveCategory({
-        data: { name: form.name, isRefund: false },
-      } as any);
+      await accountingSaveCategory({ data: { name: name.trim(), isRefund: false } } as any);
       onSaved();
       onClose();
-    } catch {
+    } catch (err: any) {
+      setSaveError(err?.message || "خطا در ذخیره‌سازی.");
       setSaving(false);
     }
   }
 
   return (
-    // Backdrop – click-outside closes
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: "rgba(17,17,17,0.55)", backdropFilter: "blur(2px)" }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog"
       aria-modal="true"
-      aria-label="افزودن حساب جدید"
+      aria-label="افزودن دسته‌بندی جدید"
     >
-      {/* Modal card */}
       <div
-        className="relative w-full max-w-lg border-2 border-ink bg-white"
+        className="relative w-full max-w-md border-2 border-ink bg-white"
         style={{ boxShadow: "9px 9px 0px 0px #111111" }}
         onMouseDown={e => e.stopPropagation()}
       >
-        {/* ── Header ── */}
+        {/* Header */}
         <div
           className="flex items-start justify-between border-b-2 border-ink px-5 py-4"
           style={{ background: "var(--nb-warning)" }}
         >
           <div>
-            <p className="font-mono text-[10px] font-bold tracking-[0.2em] text-ink uppercase">
-              NEW ACCOUNT
-            </p>
-            <h2 className="mt-1 text-lg font-black leading-tight text-ink uppercase" style={{ fontFamily: "'Archivo Black', 'Vazirmatn', sans-serif" }}>
-              افزودن حساب جدید
-            </h2>
+            <h2 className="text-lg font-black text-ink uppercase">افزودن دسته‌بندی حساب</h2>
             <p className="mt-0.5 text-xs font-medium text-ink-2">
-              اطلاعات حساب جدید را وارد کنید.
+              نام دسته‌بندی جدید را وارد کنید.
             </p>
           </div>
           <button
@@ -407,116 +357,26 @@ function AddAccountModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
           </button>
         </div>
 
-        {/* ── Form body ── */}
-        <div className="space-y-4 p-5">
-          {/* نام حساب */}
-          <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-ink">
-              نام حساب <span className="text-[var(--nb-danger)]">*</span>
-            </label>
+        {/* Body */}
+        <div className="p-5">
+          <Field label="نام دسته‌بندی">
             <input
               className={inputCls}
-              placeholder="مثلاً حساب فروش"
-              value={form.name}
-              onChange={e => set("name", e.target.value)}
+              placeholder="مثلاً درآمد متفرقه"
+              value={name}
+              onChange={e => { setName(e.target.value); setNameError(""); }}
               autoFocus
             />
-            {errors.name && (
-              <p className="mt-1 flex items-center gap-1 text-xs font-bold text-[var(--nb-danger)]">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--nb-danger)]" />
-                {errors.name}
-              </p>
-            )}
-          </div>
-
-          {/* نوع حساب */}
-          <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-ink">
-              نوع حساب <span className="text-[var(--nb-danger)]">*</span>
-            </label>
-            <select
-              className={selectCls}
-              value={form.type}
-              onChange={e => set("type", e.target.value)}
-            >
-              <option value="">انتخاب نوع حساب…</option>
-              {ACCOUNT_TYPES.map(t => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
-            {errors.type && (
-              <p className="mt-1 flex items-center gap-1 text-xs font-bold text-[var(--nb-danger)]">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--nb-danger)]" />
-                {errors.type}
-              </p>
-            )}
-          </div>
-
-          {/* مبلغ اولیه */}
-          <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-ink">
-              مبلغ اولیه
-            </label>
-            <input
-              className={inputCls}
-              type="number"
-              min="0"
-              placeholder="۰ تومان"
-              value={form.initialBalance}
-              onChange={e => set("initialBalance", e.target.value)}
-              dir="ltr"
-            />
-            {errors.initialBalance && (
-              <p className="mt-1 flex items-center gap-1 text-xs font-bold text-[var(--nb-danger)]">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--nb-danger)]" />
-                {errors.initialBalance}
-              </p>
-            )}
-          </div>
-
-          {/* توضیحات */}
-          <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-ink">
-              توضیحات
-            </label>
-            <textarea
-              className={`${inputCls} resize-none`}
-              rows={3}
-              placeholder="توضیحات حساب..."
-              value={form.description}
-              onChange={e => set("description", e.target.value)}
-            />
-          </div>
-
-          {/* وضعیت حساب */}
-          <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-ink">
-              وضعیت حساب
-            </label>
-            <div className="flex gap-2">
-              {[
-                { val: true,  label: "فعال",     accent: "var(--nb-success)" },
-                { val: false, label: "غیرفعال",  accent: "#f3ece0" },
-              ].map(opt => (
-                <button
-                  key={String(opt.val)}
-                  type="button"
-                  onClick={() => set("isActive", opt.val)}
-                  className={`flex-1 border-2 border-ink px-3 py-2 text-sm font-bold uppercase transition-all ${
-                    form.isActive === opt.val
-                      ? "text-ink nb-sh-sm"
-                      : "bg-white text-ink-2 opacity-60"
-                  }`}
-                  style={form.isActive === opt.val ? { background: opt.accent, boxShadow: "4px 4px 0 0 #111" } : {}}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          </Field>
+          {nameError && (
+            <p className="mt-1 text-xs font-bold text-red-600">{nameError}</p>
+          )}
+          {saveError && (
+            <p className="mt-2 text-xs font-bold text-red-600">{saveError}</p>
+          )}
         </div>
 
-        {/* ── Footer actions ── */}
+        {/* Footer */}
         <div
           className="flex flex-col-reverse gap-2 border-t-2 border-ink px-5 py-4 sm:flex-row sm:justify-end"
           style={{ background: "#f3ece0" }}
@@ -544,7 +404,7 @@ function AddAccountModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
             ) : (
               <span className="inline-flex items-center gap-1.5">
                 <Plus size={14} strokeWidth={2.5} />
-                ذخیره حساب
+                ذخیره
               </span>
             )}
           </button>
@@ -577,7 +437,7 @@ export function FinanceDashboard() {
     ["دریافت‌شده", d.received],
     ["دریافت‌نشده", d.unreceived],
   ];
-  const chart = d.chart ?? d.trend ?? [];
+  const chart = d.chart ?? [];
 
   return (
     <>
@@ -659,7 +519,7 @@ export function Invoices() {
   const [search, setSearch] = useState("");
   const [editor, setEditor] = useState<string | "new" | null>(null);
   const q = useQuery({
-    queryKey: ["accounting-invoices", search],
+    queryKey: ["accounting-invoices"],
     queryFn: () => accountingListInvoices(),
   });
   const remove = useMutation({
@@ -668,7 +528,17 @@ export function Invoices() {
   });
   if (editor)
     return <InvoiceEditor id={editor === "new" ? null : editor} close={() => setEditor(null)} />;
-  const rows: any[] = q.data ?? [];
+  const allRows: any[] = q.data ?? [];
+  const rows = search.trim()
+    ? allRows.filter((r) => {
+        const q = search.trim().toLowerCase();
+        return (
+          (r.invoice_number ?? "").toLowerCase().includes(q) ||
+          (r.customer_name ?? "").toLowerCase().includes(q) ||
+          (r.customer_phone ?? "").toLowerCase().includes(q)
+        );
+      })
+    : allRows;
   return (
     <>
       <AccountingNav />
@@ -791,7 +661,7 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
     shippingAmount: 0,
     paidAmount: 0,
     paymentStatus: "unpaid",
-    paymentMethod: "cash",
+    paymentMethod: null,
     items: [newLine()],
   });
   useEffect(() => {
@@ -823,15 +693,39 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
     }
   }, [one.data]);
   const items: Line[] = form.items;
-  const sub = items.reduce((a, i) => a + (i.quantity * i.unit_price - i.discount), 0);
+  // gross = sum(qty * unit_price) — matches what the backend stores as subtotal
+  const gross = items.reduce((a, i) => a + i.quantity * i.unit_price, 0);
+  // lineDiscounts = sum of per-line discount amounts
+  const lineDiscounts = items.reduce((a, i) => a + i.discount, 0);
   const total = Math.max(
     0,
-    sub - Number(form.discountAmount || 0) + Number(form.shippingAmount || 0),
+    gross - lineDiscounts - Number(form.discountAmount || 0) + Number(form.shippingAmount || 0),
   );
   const paid = Math.min(total, Number(form.paidAmount || 0));
+
+  // Frontend validation
+  function validateInvoice(): string | null {
+    if (!form.customerName?.trim()) return "نام مشتری الزامی است.";
+    if (items.length === 0) return "فاکتور باید حداقل یک آیتم داشته باشد.";
+    for (let i = 0; i < items.length; i++) {
+      if (!items[i].title?.trim()) return `ردیف ${i + 1}: نام کالا الزامی است.`;
+      if (items[i].quantity < 1) return `ردیف ${i + 1}: تعداد باید حداقل ۱ باشد.`;
+      if (items[i].unit_price < 0) return `ردیف ${i + 1}: قیمت نمی‌تواند منفی باشد.`;
+      if (items[i].discount < 0) return `ردیف ${i + 1}: تخفیف نمی‌تواند منفی باشد.`;
+      if (items[i].discount > items[i].quantity * items[i].unit_price)
+        return `ردیف ${i + 1}: تخفیف از مبلغ ردیف بیشتر است.`;
+    }
+    if (Number(form.discountAmount || 0) < 0) return "تخفیف کل نمی‌تواند منفی باشد.";
+    if (Number(form.shippingAmount || 0) < 0) return "هزینه ارسال نمی‌تواند منفی باشد.";
+    if (Number(form.paidAmount || 0) < 0) return "مبلغ پرداخت‌شده نمی‌تواند منفی باشد.";
+    return null;
+  }
+
   const [saveError, setSaveError] = useState<string | null>(null);
   const save = useMutation({
     mutationFn: () => {
+      const validationError = validateInvoice();
+      if (validationError) throw new Error(validationError);
       // Cap paidAmount to total to avoid the paid_amount <= total_amount DB constraint
       const safePaid = Math.min(total, Number(form.paidAmount || 0));
       return accountingSaveInvoice({
@@ -1108,9 +1002,10 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
           <Field label="روش پرداخت">
             <select
               className={selectCls}
-              value={form.paymentMethod}
-              onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
+              value={form.paymentMethod ?? ""}
+              onChange={(e) => setForm({ ...form, paymentMethod: e.target.value || null })}
             >
+              <option value="">— انتخاب نشده —</option>
               {Object.entries(methodLabel).map(([v, l]) => (
                 <option value={v} key={v}>
                   {l}
@@ -1120,7 +1015,8 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
           </Field>
         </div>
         <div className="mt-4 flex flex-wrap gap-4 border-t-2 border-ink pt-4 text-sm font-bold">
-          <span>جمع: {money(sub)}</span>
+          <span>جمع ناخالص: {money(gross)}</span>
+          {lineDiscounts > 0 && <span>تخفیف ردیف‌ها: -{money(lineDiscounts)}</span>}
           <span>نهایی: {money(total)}</span>
           <span>باقی‌مانده: {money(total - paid)}</span>
         </div>
@@ -1143,6 +1039,7 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
   });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<any | null>(null);
+  const [saveFormError, setSaveFormError] = useState<string | null>(null);
   /** Keep the total in sync when both quantity and unit price are set, without
    *  blocking manual override of the total for entries with no breakdown. */
   const setQty = (quantity: string) => {
@@ -1165,7 +1062,7 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
               category: form.category,
               amount: Number(form.amount),
               occurredAt: new Date(`${form.date}T00:00:00.000Z`).toISOString(),
-              paymentMethod: form.payment_method,
+              paymentMethod: form.payment_method || null,
               notes: form.notes,
             }
           : {
@@ -1177,15 +1074,19 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
               unitPrice: form.unitPrice ? Number(form.unitPrice) : null,
               totalAmount: Number(form.amount),
               occurredAt: new Date(`${form.date}T00:00:00.000Z`).toISOString(),
-              paymentMethod: form.payment_method,
+              paymentMethod: form.payment_method || null,
               notes: form.notes,
               receiptUrl: form.receiptUrl || null,
             },
       } as any),
     onSuccess: () => {
+      setSaveFormError(null);
       setForm(null);
       setOpen(false);
       qc.invalidateQueries();
+    },
+    onError: (err: any) => {
+      setSaveFormError(err?.message || err?.toString() || "خطا در ذخیره‌سازی.");
     },
   });
   const del = useMutation({
@@ -1197,8 +1098,8 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
     title: "",
     amount: 0,
     date: new Date().toISOString().slice(0, 10),
-    payment_method: "cash",
-    category: "other",
+    payment_method: null as string | null,
+    category: "سایر",
     categoryId: "",
     quantity: "",
     unit: "",
@@ -1218,8 +1119,8 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
       title: item.title ?? "",
       amount: Number(item.amount ?? item.totalAmount ?? 0),
       date: (item.occurred_at ?? item.occurredAt ?? new Date().toISOString()).slice(0, 10),
-      payment_method: item.payment_method ?? "cash",
-      category: item.category ?? "other",
+      payment_method: item.payment_method ?? null,
+      category: item.category ?? "سایر",
       categoryId: item.category_id ?? "",
       quantity: item.quantity ?? "",
       unit: item.unit ?? "",
@@ -1251,7 +1152,7 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
-          if (!next) setForm(null);
+          if (!next) { setForm(null); setSaveFormError(null); }
         }}
       >
         <DialogContent className="max-w-2xl rounded-none border-2 border-ink bg-card p-0 shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
@@ -1349,9 +1250,10 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
               <Field label="روش پرداخت">
                 <select
                   className={selectCls}
-                  value={form.payment_method}
-                  onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
+                  value={form.payment_method ?? ""}
+                  onChange={(e) => setForm({ ...form, payment_method: e.target.value || null })}
                 >
+                  <option value="">— انتخاب نشده —</option>
                   {Object.entries(methodLabel).map(([v, l]) => (
                     <option key={v} value={v}>
                       {l}
@@ -1381,12 +1283,15 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
           )}
 
           <DialogFooter className="flex justify-end gap-2 border-t-2 border-ink bg-white px-5 py-4">
+            {saveFormError && (
+              <p className="me-auto text-xs font-bold text-red-600">{saveFormError}</p>
+            )}
             <Btn variant="ghost" onClick={() => setOpen(false)}>
               انصراف
             </Btn>
             <Btn
               onClick={() => save.mutate()}
-              disabled={!form || !form.title || !form.amount || save.isPending}
+              disabled={!form || !form.title || !form.amount || Number(form.amount) <= 0 || save.isPending}
             >
               ذخیره
             </Btn>
@@ -1435,35 +1340,88 @@ export function MoneyEntries({ kind }: { kind: "income" | "expense" }) {
 }
 
 export function Ledger() {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const hasFilter = Boolean(from || to);
   const q = useQuery({
-    queryKey: ["accounting-ledger"],
-    queryFn: () => accountingListTransactions({ data: {} } as any),
+    queryKey: ["accounting-ledger", from, to],
+    queryFn: () =>
+      accountingListTransactions({
+        data: {
+          from: from ? new Date(`${from}T00:00:00.000Z`).toISOString() : undefined,
+          to:   to   ? new Date(`${to}T23:59:59.999Z`).toISOString()   : undefined,
+        },
+      } as any),
   });
+  const rows: any[] = q.data ?? [];
+  const totalIncome  = rows.filter(t => t.transaction_type === "income" ).reduce((s, t) => s + t.amount, 0);
+  const totalExpense = rows.filter(t => t.transaction_type === "expense").reduce((s, t) => s + t.amount, 0);
+
   return (
     <>
       <AccountingNav />
-      <AdminHeader title="تراکنش‌ها" subtitle="دفتر مرکزی تمام ورود و خروج‌های مالی" />
+      <AdminHeader
+        title="تراکنش‌ها"
+        subtitle="دفتر مرکزی تمام ورود و خروج‌های مالی"
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              className={inputCls}
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              aria-label="از تاریخ"
+            />
+            <input
+              type="date"
+              className={inputCls}
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              aria-label="تا تاریخ"
+            />
+            {hasFilter && (
+              <Btn variant="ghost" onClick={() => { setFrom(""); setTo(""); }}>
+                پاک کردن فیلتر
+              </Btn>
+            )}
+          </div>
+        }
+      />
+      {!hasFilter && (
+        <p className="mb-3 text-xs font-bold text-ink-2">
+          برای عملکرد بهتر، یک بازه تاریخی انتخاب کنید.
+        </p>
+      )}
       <Panel className="overflow-hidden">
         {q.isLoading ? (
           <Empty text="در حال بارگذاری…" />
-        ) : (q.data ?? []).length === 0 ? (
-          <Empty text="تراکنشی وجود ندارد." />
+        ) : rows.length === 0 ? (
+          <Empty text="تراکنشی در این بازه وجود ندارد." />
         ) : (
-          <ul className="divide-y-2 divide-ink">
-            {(q.data ?? []).map((t: any) => (
-              <li key={t.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
-                <Tag tone={t.transaction_type === "income" ? "ok" : "warn"}>
-                  {t.transaction_type === "income" ? "درآمد" : "هزینه"}
-                </Tag>
-                <span className="font-bold">{t.description ?? t.category ?? "—"}</span>
-                {t.category && <Tag>{t.category}</Tag>}
-                <span className="text-xs text-ink-2">
-                  {date(t.occurred_at)} · {methodLabel[t.payment_method] ?? "—"}
-                </span>
-                <span className="ms-auto font-mono">{money(t.amount)}</span>
-              </li>
-            ))}
-          </ul>
+          <>
+            {/* summary bar */}
+            <div className="flex flex-wrap gap-4 border-b-2 border-ink bg-[#f3ece0] px-4 py-2 text-xs font-bold">
+              <span>تعداد: {rows.length}</span>
+              <span className="text-green-700">دریافت: {money(totalIncome)}</span>
+              <span className="text-amber-700">پرداخت: {money(totalExpense)}</span>
+              <span>خالص: {money(totalIncome - totalExpense)}</span>
+            </div>
+            <ul className="divide-y-2 divide-ink">
+              {rows.map((t: any) => (
+                <li key={t.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
+                  <Tag tone={t.transaction_type === "income" ? "ok" : "warn"}>
+                    {t.transaction_type === "income" ? "درآمد" : "هزینه"}
+                  </Tag>
+                  <span className="font-bold">{t.description ?? t.category ?? "—"}</span>
+                  {t.category && <Tag>{t.category}</Tag>}
+                  <span className="text-xs text-ink-2">
+                    {date(t.occurred_at)}{t.payment_method ? ` · ${methodLabel[t.payment_method] ?? t.payment_method}` : ""}
+                  </span>
+                  <span className="ms-auto font-mono">{money(t.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </Panel>
     </>

@@ -83,26 +83,133 @@ do $$ declare t text; begin foreach t in array array['invoices','manual_incomes'
  execute format('drop trigger if exists set_updated_at on public.%I',t); execute format('create trigger set_updated_at before update on public.%I for each row execute function public.set_updated_at()',t); end loop; end $$;
 
 create or replace function public.save_accounting_invoice(_invoice jsonb, _items jsonb) returns uuid language plpgsql security definer set search_path=public as $$
-declare iid uuid; it jsonb; sub bigint := 0; disc bigint := 0; next_no bigint; prefix text;
+declare
+  iid uuid; it jsonb;
+  -- sub = gross items total (sum of qty * finalUnitPrice, before any discounts)
+  sub bigint := 0;
+  -- disc = sum of per-line discount amounts
+  disc bigint := 0;
+  -- invoice-level additional discount
+  inv_discount bigint := 0;
+  shipping bigint := 0;
+  total_amt bigint := 0;
+  paid_amt bigint := 0;
+  computed_status text;
+  next_no bigint; prefix text;
 begin
- if not public.has_role(auth.uid(),'admin') then raise exception 'not allowed'; end if;
- if jsonb_array_length(_items)=0 then raise exception 'invoice needs an item'; end if;
- iid := nullif(_invoice->>'id','')::uuid;
- for it in select * from jsonb_array_elements(_items) loop
-   if (it->>'quantity')::integer < 1 or (it->>'finalUnitPrice')::bigint < 0 then raise exception 'invalid invoice item'; end if;
-   sub := sub + (it->>'quantity')::integer * (it->>'finalUnitPrice')::bigint; disc := disc + coalesce((it->>'discountAmount')::bigint,0);
- end loop;
- if iid is null then select invoice_prefix,invoice_next_number into prefix,next_no from financial_settings where id=true for update;
-   insert into invoices(invoice_number,issued_at,customer_name,customer_phone,customer_address,customer_postal_code,notes,subtotal,discount_amount,shipping_amount,total_amount,paid_amount,payment_status,payment_method,created_by)
-   values(prefix||next_no,coalesce((_invoice->>'issuedAt')::timestamptz,now()),_invoice->>'customerName',nullif(_invoice->>'customerPhone',''),nullif(_invoice->>'customerAddress',''),nullif(_invoice->>'customerPostalCode',''),nullif(_invoice->>'notes',''),sub+disc,disc+coalesce((_invoice->>'discountAmount')::bigint,0),coalesce((_invoice->>'shippingAmount')::bigint,0),sub-disc+coalesce((_invoice->>'shippingAmount')::bigint,0),coalesce((_invoice->>'paidAmount')::bigint,0),_invoice->>'paymentStatus',nullif(_invoice->>'paymentMethod',''),auth.uid()) returning id into iid;
-   update financial_settings set invoice_next_number=next_no+1 where id=true;
- else
-   update invoices set issued_at=coalesce((_invoice->>'issuedAt')::timestamptz,issued_at),customer_name=_invoice->>'customerName',customer_phone=nullif(_invoice->>'customerPhone',''),customer_address=nullif(_invoice->>'customerAddress',''),customer_postal_code=nullif(_invoice->>'customerPostalCode',''),notes=nullif(_invoice->>'notes',''),subtotal=sub+disc,discount_amount=disc+coalesce((_invoice->>'discountAmount')::bigint,0),shipping_amount=coalesce((_invoice->>'shippingAmount')::bigint,0),total_amount=sub-disc+coalesce((_invoice->>'shippingAmount')::bigint,0),paid_amount=coalesce((_invoice->>'paidAmount')::bigint,0),payment_status=_invoice->>'paymentStatus',payment_method=nullif(_invoice->>'paymentMethod','') where id=iid;
-   if not found then raise exception 'invoice not found'; end if; delete from invoice_items where invoice_id=iid;
- end if;
- for it in select * from jsonb_array_elements(_items) loop insert into invoice_items(invoice_id,product_id,product_name,quantity,catalog_unit_price,final_unit_price,unit_cost,discount_amount,line_total,notes)
- values(iid,nullif(it->>'productId','')::uuid,it->>'productName',(it->>'quantity')::integer,(it->>'catalogUnitPrice')::bigint,(it->>'finalUnitPrice')::bigint,coalesce((it->>'unitCost')::bigint,0),coalesce((it->>'discountAmount')::bigint,0),(it->>'quantity')::integer*(it->>'finalUnitPrice')::bigint-coalesce((it->>'discountAmount')::bigint,0),nullif(it->>'notes','')); end loop;
- return iid;
+  if not public.has_role(auth.uid(),'admin') then raise exception 'not allowed'; end if;
+  if jsonb_array_length(_items) = 0 then raise exception 'invoice needs at least one item'; end if;
+
+  iid := nullif(_invoice->>'id','')::uuid;
+  inv_discount := coalesce((_invoice->>'discountAmount')::bigint, 0);
+  shipping     := coalesce((_invoice->>'shippingAmount')::bigint, 0);
+
+  -- Validate and accumulate line totals
+  for it in select * from jsonb_array_elements(_items) loop
+    if (it->>'quantity')::integer < 1 then raise exception 'quantity must be at least 1'; end if;
+    if (it->>'finalUnitPrice')::bigint < 0 then raise exception 'unit price cannot be negative'; end if;
+    sub  := sub  + (it->>'quantity')::integer * (it->>'finalUnitPrice')::bigint;
+    disc := disc + coalesce((it->>'discountAmount')::bigint, 0);
+  end loop;
+
+  -- Validate discount does not exceed pre-discount subtotal
+  if disc + inv_discount > sub then
+    raise exception 'total discounts exceed invoice subtotal';
+  end if;
+
+  -- Correct formula:
+  --   subtotal      = gross items (sum qty*price), before any discounts
+  --   discount_amount = line discounts + invoice-level discount
+  --   total_amount  = subtotal - discount_amount + shipping  (clamped to 0)
+  total_amt := greatest(0, sub - disc - inv_discount + shipping);
+  paid_amt  := coalesce((_invoice->>'paidAmount')::bigint, 0);
+
+  -- Clamp paid to total (defensive; also enforced by DB check constraint)
+  if paid_amt > total_amt then paid_amt := total_amt; end if;
+
+  -- Derive payment_status server-side — never trust the client value
+  if _invoice->>'paymentStatus' = 'cancelled' then
+    computed_status := 'cancelled';
+  elsif total_amt <= 0 then
+    computed_status := 'paid';
+  elsif paid_amt >= total_amt then
+    computed_status := 'paid';
+  elsif paid_amt > 0 then
+    computed_status := 'partial';
+  else
+    computed_status := 'unpaid';
+  end if;
+
+  if iid is null then
+    select invoice_prefix, invoice_next_number into prefix, next_no
+      from financial_settings where id = true for update;
+
+    insert into invoices(
+      invoice_number, issued_at, customer_name, customer_phone,
+      customer_address, customer_postal_code, notes,
+      subtotal, discount_amount, shipping_amount, total_amount,
+      paid_amount, payment_status, payment_method, created_by
+    ) values (
+      prefix || next_no,
+      coalesce((_invoice->>'issuedAt')::timestamptz, now()),
+      _invoice->>'customerName',
+      nullif(_invoice->>'customerPhone',''),
+      nullif(_invoice->>'customerAddress',''),
+      nullif(_invoice->>'customerPostalCode',''),
+      nullif(_invoice->>'notes',''),
+      sub,                          -- subtotal = gross before any discounts
+      disc + inv_discount,          -- discount_amount = line + invoice discounts
+      shipping,
+      total_amt,
+      paid_amt,
+      computed_status,
+      nullif(_invoice->>'paymentMethod',''),
+      auth.uid()
+    ) returning id into iid;
+
+    update financial_settings set invoice_next_number = next_no + 1 where id = true;
+  else
+    update invoices set
+      issued_at        = coalesce((_invoice->>'issuedAt')::timestamptz, issued_at),
+      customer_name    = _invoice->>'customerName',
+      customer_phone   = nullif(_invoice->>'customerPhone',''),
+      customer_address = nullif(_invoice->>'customerAddress',''),
+      customer_postal_code = nullif(_invoice->>'customerPostalCode',''),
+      notes            = nullif(_invoice->>'notes',''),
+      subtotal         = sub,
+      discount_amount  = disc + inv_discount,
+      shipping_amount  = shipping,
+      total_amount     = total_amt,
+      paid_amount      = paid_amt,
+      payment_status   = computed_status,
+      payment_method   = nullif(_invoice->>'paymentMethod','')
+    where id = iid;
+    if not found then raise exception 'invoice not found'; end if;
+    delete from invoice_items where invoice_id = iid;
+  end if;
+
+  for it in select * from jsonb_array_elements(_items) loop
+    insert into invoice_items(
+      invoice_id, product_id, product_name, quantity,
+      catalog_unit_price, final_unit_price, unit_cost,
+      discount_amount, line_total, notes
+    ) values (
+      iid,
+      nullif(it->>'productId','')::uuid,
+      it->>'productName',
+      (it->>'quantity')::integer,
+      coalesce((it->>'catalogUnitPrice')::bigint, 0),
+      (it->>'finalUnitPrice')::bigint,
+      coalesce((it->>'unitCost')::bigint, 0),
+      coalesce((it->>'discountAmount')::bigint, 0),
+      -- line_total = qty * price - line_discount (clamped to 0)
+      greatest(0, (it->>'quantity')::integer * (it->>'finalUnitPrice')::bigint
+                  - coalesce((it->>'discountAmount')::bigint, 0)),
+      nullif(it->>'notes','')
+    );
+  end loop;
+
+  return iid;
 end $$;
 
 alter table public.financial_settings enable row level security; alter table public.expense_categories enable row level security; alter table public.invoices enable row level security; alter table public.invoice_items enable row level security; alter table public.manual_incomes enable row level security; alter table public.expenses enable row level security; alter table public.financial_transactions enable row level security;
