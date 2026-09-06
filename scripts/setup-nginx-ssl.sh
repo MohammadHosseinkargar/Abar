@@ -20,14 +20,80 @@ fi
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y nginx certbot python3-certbot-nginx curl
 
+# Write the rate-limit zones into nginx.conf (http block) before the site config.
+# We use a separate snippet so certbot never overwrites our zones.
+NGINX_CONF="/etc/nginx/nginx.conf"
+ZONES_MARKER="# abar3d rate-limit zones"
+if ! grep -qF "${ZONES_MARKER}" "${NGINX_CONF}"; then
+  # Insert the zones right after the `http {` opening line
+  sed -i "/^http {/a\\
+\\
+    ${ZONES_MARKER}\\
+    # Strict zone for auth / payment / order endpoints (10 req/s per IP)\\
+    limit_req_zone \$binary_remote_addr zone=api_strict:10m rate=10r/s;\\
+    # Looser zone for general pages (30 req/s per IP)\\
+    limit_req_zone \$binary_remote_addr zone=general:20m rate=30r/s;\\
+    # Gzip compression\\
+    gzip on;\\
+    gzip_vary on;\\
+    gzip_proxied any;\\
+    gzip_comp_level 5;\\
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml font/woff2;\\
+    gzip_min_length 1024;\\
+" "${NGINX_CONF}"
+fi
+
 cat >"${SITE_FILE}" <<NGINX
+# ── Proxy cache for immutable JS/CSS assets (10 min in-memory) ──────────────
+proxy_cache_path /var/cache/nginx/abar3d levels=1:2 keys_zone=assets_cache:8m
+                 max_size=256m inactive=60m use_temp_path=off;
+
 server {
     listen 80;
     listen [::]:80;
     server_name ${DOMAIN};
-    client_max_body_size 250M;
 
+    # Hard cap on upload size (admin image uploads go via Supabase Storage,
+    # so 20 MB is generous for any body that hits the Node app directly).
+    client_max_body_size 20M;
+
+    # ── Rate limiting ───────────────────────────────────────────────────────
+    # Applied per-location below; burst absorbs short spikes without 429.
+
+    # ── Static / immutable assets — served from proxy cache ─────────────────
+    location ~* ^/assets/ {
+        proxy_pass http://${APP_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_cache assets_cache;
+        proxy_cache_valid 200 10m;
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        add_header X-Cache-Status \$upstream_cache_status;
+        # Immutable assets have content-hashed names — safe to cache long in browser
+        add_header Cache-Control "public, max-age=2592000, immutable";
+        # No rate limit for static assets
+    }
+
+    # ── Payment / order / auth API (strict rate limit) ──────────────────────
+    location ~* ^/(api/payment|_server/fn/startPayment|_server/fn/verifyPayment|_server/fn/placeOrder|_server/fn/accountingSaveInvoice) {
+        limit_req zone=api_strict burst=5 nodelay;
+        limit_req_status 429;
+
+        proxy_pass http://${APP_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+
+    # ── Everything else ──────────────────────────────────────────────────────
     location / {
+        limit_req zone=general burst=20 nodelay;
+        limit_req_status 429;
+
         proxy_pass http://${APP_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -36,11 +102,14 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
     }
 }
 NGINX
+
+# Ensure the proxy cache directory exists
+mkdir -p /var/cache/nginx/abar3d
 
 ln -sfn "${SITE_FILE}" "${SITE_LINK}"
 rm -f /etc/nginx/sites-enabled/default

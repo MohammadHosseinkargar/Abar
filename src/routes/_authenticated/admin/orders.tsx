@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { adminListOrders, adminUpdateOrder } from "@/lib/admin.functions";
 import { AdminHeader, Panel, Btn, Field, inputCls, Tag, num, Empty } from "@/components/admin/kit";
 import { orderStatusFa, type OrderStatus } from "@/data/orders";
@@ -13,11 +13,19 @@ export const Route = createFileRoute("/_authenticated/admin/orders")({
 
 const paymentFa: Record<string, string> = { unpaid: "پرداخت نشده", paid: "پرداخت شده", refunded: "بازگشت وجه" };
 
+const PAGE_SIZE = 50;
+
 function AdminOrders() {
   const qc = useQueryClient();
-  const orders = useQuery({ queryKey: ["admin-orders"], queryFn: () => adminListOrders() });
-  const [open, setOpen] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<string>("all");
+  const [open, setOpen] = useState<string | null>(null);
+
+  const orders = useQuery({
+    queryKey: ["admin-orders", page, filter],
+    queryFn: () => adminListOrders({ data: { page, limit: PAGE_SIZE, status: filter as any } }),
+    placeholderData: (prev) => prev,
+  });
 
   const update = useMutation({
     mutationFn: (v: { id: string; status: OrderStatus; paymentStatus: "unpaid" | "paid" | "refunded"; trackingCode: string }) =>
@@ -25,15 +33,21 @@ function AdminOrders() {
     onSuccess: () => qc.invalidateQueries(),
   });
 
-  const rows = (orders.data ?? []).filter((o) => filter === "all" || o.status === filter);
+  const rows = orders.data?.orders ?? [];
+  const total = orders.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <>
       <AdminHeader
         title="سفارش‌ها"
-        subtitle="وضعیت سفارش‌ها و کد رهگیری"
+        subtitle={`${total} سفارش — وضعیت و کد رهگیری`}
         action={
-          <select className={`${inputCls} w-auto`} value={filter} onChange={(e) => setFilter(e.target.value)}>
+          <select
+            className={`${inputCls} w-auto`}
+            value={filter}
+            onChange={(e) => { setFilter(e.target.value); setPage(1); }}
+          >
             <option value="all">همه وضعیت‌ها</option>
             {Object.entries(orderStatusFa).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
@@ -48,38 +62,63 @@ function AdminOrders() {
         ) : rows.length === 0 ? (
           <Empty text="سفارشی یافت نشد." />
         ) : (
-          <ul className="divide-y-2 divide-ink">
-            {rows.map((o) => (
-              <li key={o.id}>
-                <button
-                  onClick={() => setOpen(open === o.id ? null : o.id)}
-                  className="flex w-full flex-wrap items-center gap-3 px-4 py-3 text-start transition-colors hover:bg-muted/50"
-                >
-                  <span className="font-mono text-xs">{o.code}</span>
-                  <Tag>{orderStatusFa[o.status as OrderStatus] ?? o.status}</Tag>
-                  <Tag tone={o.paymentStatus === "paid" ? "ok" : "warn"}>{paymentFa[o.paymentStatus]}</Tag>
-                  <span className="text-xs text-ink-3">{o.address?.receiver ?? "—"}</span>
-                  <span
-                    className="ms-auto text-xs text-ink-3"
-                    title={o.paidAt ? "زمان پرداخت" : "زمان ثبت سفارش"}
+          <>
+            <ul className="divide-y-2 divide-ink">
+              {rows.map((o) => (
+                <li key={o.id}>
+                  <button
+                    onClick={() => setOpen(open === o.id ? null : o.id)}
+                    className="flex w-full flex-wrap items-center gap-3 px-4 py-3 text-start transition-colors hover:bg-muted/50"
                   >
-                    {o.paidAt ? "پرداخت: " : "ثبت: "}
-                    {faDateTime(o.paidAt ?? o.createdAt)}
-                  </span>
-                  <span className="font-mono text-xs">{num(o.total)}</span>
-                  <ChevronDown size={14} className={`transition-transform ${open === o.id ? "rotate-180" : ""}`} />
+                    <span className="font-mono text-xs">{o.code}</span>
+                    <Tag>{orderStatusFa[o.status as OrderStatus] ?? o.status}</Tag>
+                    <Tag tone={o.paymentStatus === "paid" ? "ok" : "warn"}>{paymentFa[o.paymentStatus]}</Tag>
+                    <span className="text-xs text-ink-3">{o.address?.receiver ?? "—"}</span>
+                    <span
+                      className="ms-auto text-xs text-ink-3"
+                      title={o.paidAt ? "زمان پرداخت" : "زمان ثبت سفارش"}
+                    >
+                      {o.paidAt ? "پرداخت: " : "ثبت: "}
+                      {faDateTime(o.paidAt ?? o.createdAt)}
+                    </span>
+                    <span className="font-mono text-xs">{num(o.total)}</span>
+                    <ChevronDown size={14} className={`transition-transform ${open === o.id ? "rotate-180" : ""}`} />
+                  </button>
+                  {open === o.id && <OrderEditor order={o} onSave={(v) => update.mutate({ id: o.id, ...v })} saving={update.isPending} />}
+                </li>
+              ))}
+            </ul>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 border-t-2 border-ink px-4 py-3">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="disabled:opacity-30"
+                  aria-label="صفحه قبل"
+                >
+                  <ChevronRight size={18} />
                 </button>
-                {open === o.id && <OrderEditor order={o} onSave={(v) => update.mutate({ id: o.id, ...v })} saving={update.isPending} />}
-              </li>
-            ))}
-          </ul>
+                <span className="font-mono text-xs">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="disabled:opacity-30"
+                  aria-label="صفحه بعد"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </Panel>
     </>
   );
 }
 
-type OrderRow = Awaited<ReturnType<typeof adminListOrders>>[number];
+type OrderRow = NonNullable<Awaited<ReturnType<typeof adminListOrders>>>["orders"][number];
 
 function OrderEditor({
   order,

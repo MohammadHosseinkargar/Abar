@@ -5,6 +5,10 @@ import type { Database } from "@/integrations/supabase/types";
 import type { Product } from "@/data/products";
 import type { Category } from "@/data/categories";
 
+// 10-second hard timeout on every Supabase fetch so a slow/unreachable
+// Supabase instance never hangs the SSR process indefinitely.
+const SUPABASE_TIMEOUT_MS = 10_000;
+
 function publicClient() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
@@ -20,7 +24,12 @@ function publicClient() {
         const h = new Headers(init?.headers);
         if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
         h.set("apikey", key);
-        return fetch(input, { ...init, headers: h });
+        // Abort if Supabase doesn't respond within SUPABASE_TIMEOUT_MS
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS);
+        return fetch(input, { ...init, headers: h, signal: controller.signal }).finally(() =>
+          clearTimeout(timer),
+        );
       },
     },
   });
@@ -60,17 +69,26 @@ const PRODUCT_COLUMNS =
 
 export const listCategories = createServerFn({ method: "GET" }).handler(async (): Promise<Category[]> => {
   const supabase = publicClient();
-  const { data, error } = await supabase
-    .from("categories")
-    .select("slug, name, tagline, sort_order, image_url")
-    .order("sort_order", { ascending: true });
-  if (error) throw error;
+  // Run both queries in parallel instead of sequentially.
+  const [catResult, countResult] = await Promise.all([
+    supabase
+      .from("categories")
+      .select("slug, name, tagline, sort_order, image_url")
+      .order("sort_order", { ascending: true }),
+    // Fetch only (category_slug, id) — far cheaper than selecting all columns.
+    // PostgREST returns one row per active product; we tally them client-side.
+    supabase
+      .from("products")
+      .select("category_slug")
+      .eq("is_active", true),
+  ]);
 
-  const { data: counts } = await supabase.from("products").select("category_slug").eq("is_active", true);
+  if (catResult.error) throw catResult.error;
+
   const byCat = new Map<string, number>();
-  (counts ?? []).forEach((p) => byCat.set(p.category_slug, (byCat.get(p.category_slug) ?? 0) + 1));
+  (countResult.data ?? []).forEach((p) => byCat.set(p.category_slug, (byCat.get(p.category_slug) ?? 0) + 1));
 
-  return (data ?? []).map((c) => ({
+  return (catResult.data ?? []).map((c) => ({
     slug: c.slug,
     name: c.name,
     tagline: c.tagline ?? "",

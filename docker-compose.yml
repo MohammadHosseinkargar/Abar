@@ -6,7 +6,7 @@ services:
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:?Set VITE_SUPABASE_URL in .env}
         VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:?Set VITE_SUPABASE_PUBLISHABLE_KEY in .env}
     container_name: abar-app
-    restart: always
+    restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
     environment:
@@ -26,9 +26,20 @@ services:
       - TOROB_ORDER_TRACKING_ENABLED=${TOROB_ORDER_TRACKING_ENABLED:-false}
       - NODE_ENV=production
       - HOST=0.0.0.0
+      # Cap Node's heap at 384 MB so the OOM killer hits the container
+      # before it takes down the whole VPS. Tune up if the VPS has >2 GB RAM.
+      - NODE_OPTIONS=--max-old-space-size=384
+    deploy:
+      resources:
+        limits:
+          # Hard memory ceiling for the container (slightly above heap cap
+          # to leave room for native buffers and the V8 stack).
+          memory: 512M
+        reservations:
+          memory: 128M
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/robots.txt').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/public/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
-      start_period: 30s
+      start_period: 40s
       retries: 3

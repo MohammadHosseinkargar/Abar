@@ -296,35 +296,57 @@ export const adminDeleteCategory = createServerFn({ method: "POST" })
 
 export const adminListOrders = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((input: unknown) =>
+    z.object({
+      page:   z.number().int().min(1).max(10_000).optional().default(1),
+      limit:  z.number().int().min(1).max(100).optional().default(50),
+      status: z.enum(["pending","processing","printing","shipped","delivered","cancelled","all"]).optional().default("all"),
+    }).parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const db = await admin();
-    const { data, error } = await db
+    const { page, limit, status } = data;
+    const from = (page - 1) * limit;
+    const to   = from + limit - 1;
+
+    let q = db
       .from("orders")
       .select(
         "id, code, created_at, paid_at, status, payment_status, total, tracking_code, shipping_address, order_items(id, name, qty, price, color, size)",
+        { count: "exact" },
       )
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (status !== "all") q = q.eq("status", status);
+
+    const { data: rows, error, count } = await q;
     if (error) throw error;
-    return (data ?? []).map((o) => ({
-      id: o.id,
-      code: o.code,
-      createdAt: o.created_at,
-      paidAt: o.paid_at,
-      status: o.status,
-      paymentStatus: o.payment_status,
-      total: Number(o.total),
-      trackingCode: o.tracking_code,
-      address: o.shipping_address as Record<string, string> | null,
-      items: (o.order_items ?? []).map((i) => ({
-        id: i.id,
-        name: i.name,
-        qty: i.qty,
-        price: Number(i.price),
-        color: i.color,
-        size: i.size,
+    return {
+      total: count ?? 0,
+      page,
+      limit,
+      orders: (rows ?? []).map((o) => ({
+        id: o.id,
+        code: o.code,
+        createdAt: o.created_at,
+        paidAt: o.paid_at,
+        status: o.status,
+        paymentStatus: o.payment_status,
+        total: Number(o.total),
+        trackingCode: o.tracking_code,
+        address: o.shipping_address as Record<string, string> | null,
+        items: (o.order_items ?? []).map((i) => ({
+          id: i.id,
+          name: i.name,
+          qty: i.qty,
+          price: Number(i.price),
+          color: i.color,
+          size: i.size,
+        })),
       })),
-    }));
+    };
   });
 
 export const adminUpdateOrder = createServerFn({ method: "POST" })
@@ -358,31 +380,51 @@ export const adminUpdateOrder = createServerFn({ method: "POST" })
 
 export const adminListUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((input: unknown) =>
+    z.object({
+      page:  z.number().int().min(1).max(1_000).optional().default(1),
+      limit: z.number().int().min(1).max(100).optional().default(50),
+    }).parse(input ?? {}),
+  )
+  .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const db = await admin();
-    const [{ data: profiles }, { data: roles }, { data: orders }, list] = await Promise.all([
-      db
-        .from("profiles")
-        .select("id, full_name, phone, created_at")
-        .order("created_at", { ascending: false }),
-      db.from("user_roles").select("user_id, role"),
-      db.from("orders").select("user_id, total, payment_status"),
-      db.auth.admin.listUsers({ page: 1, perPage: 200 }),
-    ]);
+    const { page, limit } = data;
+    const from = (page - 1) * limit;
+    const to   = from + limit - 1;
+
+    // Supabase auth.admin.listUsers is paginated natively — use it directly.
+    const [{ data: profiles, count: profileCount }, { data: roles }, { data: orders }, list] =
+      await Promise.all([
+        db
+          .from("profiles")
+          .select("id, full_name, phone, created_at", { count: "exact" })
+          .order("created_at", { ascending: false })
+          .range(from, to),
+        db.from("user_roles").select("user_id, role"),
+        // Only fetch the two columns we actually use for aggregation
+        db.from("orders").select("user_id, total, payment_status"),
+        db.auth.admin.listUsers({ page, perPage: limit }),
+      ]);
+
     const emails = new Map((list.data?.users ?? []).map((u) => [u.id, u.email ?? ""]));
-    return (profiles ?? []).map((p) => ({
-      id: p.id,
-      fullName: p.full_name ?? "",
-      phone: p.phone ?? "",
-      email: emails.get(p.id) ?? "",
-      createdAt: p.created_at,
-      isAdmin: (roles ?? []).some((r) => r.user_id === p.id && r.role === "admin"),
-      ordersCount: (orders ?? []).filter((o) => o.user_id === p.id).length,
-      spent: (orders ?? [])
-        .filter((o) => o.user_id === p.id && o.payment_status === "paid")
-        .reduce((n, o) => n + Number(o.total), 0),
-    }));
+    return {
+      total: profileCount ?? 0,
+      page,
+      limit,
+      users: (profiles ?? []).map((p) => ({
+        id: p.id,
+        fullName: p.full_name ?? "",
+        phone: p.phone ?? "",
+        email: emails.get(p.id) ?? "",
+        createdAt: p.created_at,
+        isAdmin: (roles ?? []).some((r) => r.user_id === p.id && r.role === "admin"),
+        ordersCount: (orders ?? []).filter((o) => o.user_id === p.id).length,
+        spent: (orders ?? [])
+          .filter((o) => o.user_id === p.id && o.payment_status === "paid")
+          .reduce((n, o) => n + Number(o.total), 0),
+      })),
+    };
   });
 
 export const adminSetRole = createServerFn({ method: "POST" })
