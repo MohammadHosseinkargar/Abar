@@ -2,6 +2,9 @@ services:
   app:
     build:
       context: .
+      # BuildKit is required for --mount=type=cache in the Dockerfile.
+      # It is enabled automatically in Docker 23+ (Compose v2).
+      # On older setups set DOCKER_BUILDKIT=1 before running docker compose.
       args:
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:?Set VITE_SUPABASE_URL in .env}
         VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:?Set VITE_SUPABASE_PUBLISHABLE_KEY in .env}
