@@ -142,7 +142,8 @@ async function exportInvoicePDF(invoiceId: string) {
     container.style.left = "-9999px";
     container.style.top = "-9999px";
     container.style.width = "210mm";
-    container.style.padding = "20mm";
+    // No padding on the outer wrapper — the inner div already has 20mm padding.
+    // Previously both had 20mm which created 40mm of padding on each side.
     container.style.fontFamily = "Vazirmatn, sans-serif";
     container.style.background = "white";
     container.style.minHeight = "297mm";
@@ -229,6 +230,10 @@ async function exportInvoicePDF(invoiceId: string) {
 
     document.body.appendChild(container);
 
+    // Wait for custom fonts (Vazirmatn) to finish loading before capturing,
+    // otherwise html2canvas renders Persian text as boxes/fallback glyphs.
+    await document.fonts.ready;
+
     // Capture with html2canvas
     const canvas = await html2canvas(container, {
       scale: 2,
@@ -239,10 +244,19 @@ async function exportInvoicePDF(invoiceId: string) {
 
     document.body.removeChild(container);
 
+    // Convert canvas to ArrayBuffer via toBlob — more reliable than passing a
+    // data URL string to pdf-lib's embedPng across different versions.
+    const pngBytes = await new Promise<ArrayBuffer>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) { reject(new Error("canvas.toBlob failed")); return; }
+        blob.arrayBuffer().then(resolve).catch(reject);
+      }, "image/png");
+    });
+
     // Create PDF
     const pdfDoc = await pdfLib.PDFDocument.create();
     const page = pdfDoc.addPage([canvas.width / 2, canvas.height / 2]);
-    const png = await pdfDoc.embedPng(await canvas.toDataURL("image/png"));
+    const png = await pdfDoc.embedPng(pngBytes);
     page.drawImage(png, {
       x: 0,
       y: 0,
@@ -815,9 +829,12 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
     sub - Number(form.discountAmount || 0) + Number(form.shippingAmount || 0),
   );
   const paid = Math.min(total, Number(form.paidAmount || 0));
+  const [saveError, setSaveError] = useState<string | null>(null);
   const save = useMutation({
-    mutationFn: () =>
-      accountingSaveInvoice({
+    mutationFn: () => {
+      // Cap paidAmount to total to avoid the paid_amount <= total_amount DB constraint
+      const safePaid = Math.min(total, Number(form.paidAmount || 0));
+      return accountingSaveInvoice({
         data: {
           id,
           issuedAt: form.issuedAt,
@@ -828,7 +845,7 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
           notes: form.notes,
           discountAmount: Number(form.discountAmount),
           shippingAmount: Number(form.shippingAmount),
-          paidAmount: Number(form.paidAmount),
+          paidAmount: safePaid,
           paymentStatus: form.paymentStatus,
           paymentMethod: form.paymentMethod,
           items: items.map((i) => ({
@@ -842,10 +859,17 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
             notes: i.note,
           })),
         },
-      } as any),
+      } as any);
+    },
     onSuccess: () => {
+      setSaveError(null);
       qc.invalidateQueries();
       close();
+    },
+    onError: (err: any) => {
+      const msg =
+        err?.message || err?.toString() || "خطای ناشناخته در ذخیره فاکتور.";
+      setSaveError(msg);
     },
   });
   const update = (index: number, key: keyof Line, value: any) =>
@@ -882,6 +906,11 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
           </>
         }
       />
+      {saveError && (
+        <div className="mb-4 border-2 border-red-600 bg-red-50 p-3 text-sm text-red-700">
+          <strong>خطا در ذخیره‌سازی: </strong>{saveError}
+        </div>
+      )}
       <Panel className="p-4 print:border-0 print:shadow-none" id="invoice-printable">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="تاریخ">
@@ -954,13 +983,25 @@ export function InvoiceEditor({ id, close }: { id: string | null; close: () => v
                       value={line.title}
                       onChange={(e) => {
                         const p = (products.data ?? []).find((v: any) => v.name === e.target.value);
-                        update(i, "title", e.target.value);
-                        if (p) {
-                          update(i, "product_id", p.id);
-                          update(i, "list_price", Number(p.price));
-                          update(i, "unit_price", Number(p.price));
-                          update(i, "unit_cost", Number(p.costPrice ?? 0));
-                        }
+                        // Batch all field updates into a single setForm call to avoid
+                        // stale-closure race where each update() call overwrites the previous.
+                        setForm((prev: any) => ({
+                          ...prev,
+                          items: prev.items.map((x: Line, j: number) =>
+                            j !== i
+                              ? x
+                              : p
+                              ? {
+                                  ...x,
+                                  title: e.target.value,
+                                  product_id: p.id,
+                                  list_price: Number(p.price),
+                                  unit_price: Number(p.price),
+                                  unit_cost: Number(p.costPrice ?? 0),
+                                }
+                              : { ...x, title: e.target.value, product_id: undefined },
+                          ),
+                        }));
                       }}
                     />
                     <datalist id="catalogue">
