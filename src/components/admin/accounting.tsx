@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import * as pdfLib from "pdf-lib";
-import html2canvas from "html2canvas";
+
 import {
   BarChart3,
   Eye,
